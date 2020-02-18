@@ -68,11 +68,11 @@ import os
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=False,
-                    default='2beb105836a4c44b942eed4666d0cd48', help='arista.com user API key')
+                    default='', help='arista.com user API key')
 parser.add_argument('--cvp', required=False,
-                    default='192.168.32.10', help='IP address of CVP server')
+                    default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
-                    default='Arista123', help='Root password of CVP server')
+                    default='', help='Root password of CVP server')
 
 args = parser.parse_args()
 
@@ -95,19 +95,6 @@ web_data_final = result.text
 split_web_data = web_data_final.splitlines()
 
 alertBaseFile = 'AlertBase-CVP.json'
-
-#try:
-#    with open(alertBaseFile) as filetest:
-#        # Check if the AlertBase JSON file exists
-#        pass
-#except IOError as e:
-#    # handle the exception (file doesn't exist) by downloading the AlertBase JSON
-#    print ('\n Bug Alert Database does not exist. Downloading...\n')
-#    alertdbfile = open(alertBaseFile, 'w')
-#    alertdbfile.write(web_data_final)
-#    alertdbfile.close()
-#    print('\n Bug Alert Database successfully created and imported\n')
-#    exit(0)
 
 if os.path.isfile(alertBaseFile):
    with open(alertBaseFile, 'r') as file:
