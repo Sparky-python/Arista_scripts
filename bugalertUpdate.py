@@ -63,16 +63,19 @@ from paramiko import SSHClient
 from scp import SCPClient
 import paramiko
 import os
+import time
 
+def remove_last_line_from_string(s):
+    return s[:s.rfind('\n')]
 
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=False,
-                    default='', help='arista.com user API key')
+                    default='2beb105836a4c44b942eed4666d0cd48', help='arista.com user API key')
 parser.add_argument('--cvp', required=False,
-                    default='', help='IP address of CVP server')
+                    default='192.168.32.10', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
-                    default='', help='Root password of CVP server')
+                    default='Arista123', help='Root password of CVP server')
 
 args = parser.parse_args()
 
@@ -96,12 +99,29 @@ split_web_data = web_data_final.splitlines()
 
 alertBaseFile = 'AlertBase-CVP.json'
 
+ssh = SSHClient()
+ssh.load_system_host_keys()
+ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+ssh.connect(cvp, username="root", password=rootpw)
+ssh_shell = ssh.invoke_shell()
+ssh_shell.send("rpm -qi cvp-base\n")
+time.sleep(2)
+output = ssh_shell.recv(8000)
+output = output.decode("utf-8")
+output = remove_last_line_from_string(output)
+output = remove_last_line_from_string(output)
+output = remove_last_line_from_string(output)
+output = output[(output.index('Name')):]
+Dict = dict((x.strip(), y.strip()) for x, y in (element.split(': ') for element in output.split('\r\n')))
+cvp_main_version = Dict["Version"][0:4]
+
+
 if os.path.isfile(alertBaseFile):
    with open(alertBaseFile, 'r') as file:
       existing_file = file.read()
    split_existing_file = existing_file.splitlines()
-   if split_web_data[2] != split_existing_file[2]: 
-      existing_file.close()   
+   if split_web_data[2] != split_existing_file[2]:   
+      file.close()   
       os.remove('AlertBase-CVP.json')
 
       print ('\n Bug Alert Database out of date. Downloading update...\n')
@@ -117,7 +137,13 @@ if os.path.isfile(alertBaseFile):
       scp = SCPClient(ssh.get_transport())
       scp.put('AlertBase-CVP.json')
       stdin, stdout, stderr = ssh.exec_command('chmod 644 AlertBase-CVP.json')
-      stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/aeris/bugalerts/AlertBase.json')
+      if cvp_main_version == "2020":
+         stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/bugalerts/AlertBase.json')
+      elif (cvp_main_version == "2018") or (cvp_main_version == "2019"): 
+         stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/aeris/bugalerts/AlertBase.json')
+      else:
+         print('\n This version of CVP is not supported by this script')
+         sys.exit()
       stdin, stdout, stderr = ssh.exec_command('su cvp')
       stdin, stdout, stderr = ssh.exec_command('cvpi stop bugalerts-update && cvp start bugalerts-update')
    else:
@@ -140,4 +166,3 @@ else:
    stdin, stdout, stderr = ssh.exec_command('su cvp')
    stdin, stdout, stderr = ssh.exec_command('cvpi stop bugalerts-update && cvp start bugalerts-update')
    
-
