@@ -64,6 +64,8 @@ from scp import SCPClient
 import paramiko
 import os
 import time
+from datetime import datetime
+
 
 def remove_last_line_from_string(s):
     return s[:s.rfind('\n')]
@@ -98,6 +100,7 @@ web_data_final = result.text
 split_web_data = web_data_final.splitlines()
 
 alertBaseFile = 'AlertBase-CVP.json'
+logFile = 'bugalertUpdate.log'
 
 ssh = SSHClient()
 ssh.load_system_host_keys()
@@ -115,6 +118,9 @@ output = output[(output.index('Name')):]
 Dict = dict((x.strip(), y.strip()) for x, y in (element.split(': ') for element in output.split('\r\n')))
 cvp_main_version = Dict["Version"][0:4]
 
+log = open(logFile, 'a+')
+log.write("\nTimestamp  --  " + (datetime.now().strftime("%m/%d/%Y, %H:%M:%S")) + "\n" + "===================================\n")
+
 
 if os.path.isfile(alertBaseFile):
    with open(alertBaseFile, 'r') as file:
@@ -124,11 +130,11 @@ if os.path.isfile(alertBaseFile):
       file.close()   
       os.remove('AlertBase-CVP.json')
 
-      print ('\n Bug Alert Database out of date. Downloading update...\n')
+      log.write('\n Bug Alert Database out of date. Downloading update...\n')
       alertdbfile = open(alertBaseFile, 'w')
       alertdbfile.write(web_data_final)
       alertdbfile.close()
-      print('\n Bug Alert Database successfully created and imported\n')
+      log.write('\n Bug Alert Database successfully created and imported\n')
 
       ssh = SSHClient()
       ssh.load_system_host_keys()
@@ -142,18 +148,18 @@ if os.path.isfile(alertBaseFile):
       elif (cvp_main_version == "2018") or (cvp_main_version == "2019"): 
          stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/aeris/bugalerts/AlertBase.json')
       else:
-         print('\n This version of CVP is not supported by this script')
+         log.write('\n This version of CVP is not supported by this script')
          sys.exit()
       stdin, stdout, stderr = ssh.exec_command('su cvp')
       stdin, stdout, stderr = ssh.exec_command('cvpi stop bugalerts-update && cvp start bugalerts-update')
    else:
-      print('\n No updates to Bug Alert Database file.\n')
+      log.write('\n No updates to Bug Alert Database file.\n')
 else:
-   print ('\n Bug Alert Database does not exist. Downloading...\n')
+   log.write ('\n Bug Alert Database does not exist. Downloading...\n')
    alertdbfile = open(alertBaseFile, 'w')
    alertdbfile.write(web_data_final)
    alertdbfile.close()
-   print('\n Bug Alert Database successfully created and imported\n')
+   log.write('\n Bug Alert Database successfully created and imported\n')
 
    ssh = SSHClient()
    ssh.load_system_host_keys()
@@ -166,3 +172,4 @@ else:
    stdin, stdout, stderr = ssh.exec_command('su cvp')
    stdin, stdout, stderr = ssh.exec_command('cvpi stop bugalerts-update && cvp start bugalerts-update')
    
+log.close()
