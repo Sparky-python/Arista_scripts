@@ -60,6 +60,7 @@ import requests
 import argparse
 import json
 import warnings
+import urllib.request
 
 from paramiko import SSHClient
 from scp import SCPClient
@@ -78,6 +79,8 @@ parser.add_argument('--rootpw', required=False,
                     default='Arista123', help='Root password of CVP server')
 parser.add_argument('--eos', required=True,
                     default='', help='EOS iamge to download')
+parser.add_argument('--i', required=False, action='store_true',
+                    default=False, help='EOS International/Federal Releases')
 
 args = parser.parse_args()
 
@@ -85,6 +88,7 @@ api = args.api
 cvp = args.cvp
 rootpw = args.rootpw
 eos = args.eos
+i = args.i
 
 creds = (base64.b64encode(api.encode())).decode("utf-8")
 
@@ -100,10 +104,20 @@ folder_tree = (result.json()["data"]["xml"])
 
 root = ET.fromstring(folder_tree)
 path = ""
-for child in root[0][0].iter('dir'):
+
+if i:
+   z = 1
+   eos_filename = "EOS-" + eos + "-INT.swi"
+else:
+   z = 0
+   eos_filename = "EOS-" + eos + ".swi"
+
+for child in root[z].iter('dir'):
    if child.attrib == {'label': "EOS-" + eos}:
-      print (child[5].attrib['path'])
-      path = child[5].attrib['path']
+      for grandchild in child.iter('file'):
+         if grandchild.text == (eos_filename):
+            path = grandchild.attrib['path']
+
 
 if path == "":
    print("\nEOS image does not exist.")
@@ -112,10 +126,28 @@ download_link_url = "https://www.arista.com/custom_data/api/cvp/getDownloadLink/
 jsonpost = {'sessionCode': session_code, 'filePath': path}
 result = requests.post(download_link_url, data=json.dumps(jsonpost))
 download_link = (result.json()["data"]["url"])
-print(download_link)
 
-eos_filename = "EOS-" + eos + ".swi"
-r = requests.get(download_link)
-with open(eos_filename, 'wb') as f:
-   f.write(r.content)
+print(eos_filename + " is currently downloading....")
+
+def progressBar(value, endvalue, bar_length=20):
+
+    percent = float(value) / endvalue
+    arrow = '-' * int(round(percent * bar_length)-1) + '>'
+    spaces = ' ' * (bar_length - len(arrow))
+
+    sys.stdout.write("\rPercent: [{0}] {1}%".format(arrow + spaces, int(round(percent * 100))))
+    sys.stdout.flush()
+
+def Download_Progress(block_num, block_size, total_size):
+    downloaded = block_num * block_size
+    progress = int((downloaded/total_size)*100)
+    print (progressBar(downloaded, total_size))
+    
+
+urllib.request.urlretrieve(download_link, eos_filename, reporthook=Download_Progress)
+    
+#r = requests.get(download_link)
+#with open(eos_filename, 'wb') as f:
+#   f.write(r.content)
+
 
