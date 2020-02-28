@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2017, Arista Networks, Inc.
 # All rights reserved.
@@ -45,7 +45,8 @@ To learn more about BugAlerts see: https://eos.arista.com/eos-4-17-0f/bug-alerts
 INSTALLATION
 1. python3 needs to be installed on the jump host
 2. wget https://github.com/coreyhines/Arista/raw/master/bugalertUpdate.py
-3. run the script with.. ./bugalertUpdate.py --api <BUGALERTS TOKEN FROM ARISTA.COM> --cvp <CVP SERVER IP ADDRESS> --rootpw <ROOT PASSWORD OF CVP SERVER>
+3. run the script with.. ./bugalertUpdate.py --api <BUGALERTS TOKEN FROM ARISTA.COM> --cvp <CVP SERVER IP ADDRESS> 
+--rootpw <ROOT PASSWORD OF CVP SERVER>
 4. python pip install scp, paramiko
 
 Credit to Corey Hinds for original script which this was based on to update BugAlerts file 
@@ -61,13 +62,14 @@ import argparse
 import json
 import warnings
 import urllib.request
+from tqdm import tqdm
 
-from paramiko import SSHClient
-from scp import SCPClient
-import paramiko
-import os
-import time
-from datetime import datetime
+#from paramiko import SSHClient
+#from scp import SCPClient
+#import paramiko
+#import os
+#import time
+#from datetime import datetime
 
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
@@ -129,25 +131,18 @@ download_link = (result.json()["data"]["url"])
 
 print(eos_filename + " is currently downloading....")
 
-def progressBar(value, endvalue, bar_length=20):
+def download_file(url, filename):
+    """
+    Helper method handling downloading large files from `url` to `filename`. Returns a pointer to `filename`.
+    """
+    chunkSize = 1024
+    r = requests.get(url, stream=True)
+    with open(filename, 'wb') as f:
+        pbar = tqdm( unit="B", total=int( r.headers['Content-Length'] ), unit_scale=True, unit_divisor=1024 )
+        for chunk in r.iter_content(chunk_size=chunkSize): 
+            if chunk: # filter out keep-alive new chunks
+                pbar.update (len(chunk))
+                f.write(chunk)
+    return filename
 
-    percent = float(value) / endvalue
-    arrow = '-' * int(round(percent * bar_length)-1) + '>'
-    spaces = ' ' * (bar_length - len(arrow))
-
-    sys.stdout.write("\rPercent: [{0}] {1}%".format(arrow + spaces, int(round(percent * 100))))
-    sys.stdout.flush()
-
-def Download_Progress(block_num, block_size, total_size):
-    downloaded = block_num * block_size
-    progress = int((downloaded/total_size)*100)
-    print (progressBar(downloaded, total_size))
-    
-
-urllib.request.urlretrieve(download_link, eos_filename, reporthook=Download_Progress)
-    
-#r = requests.get(download_link)
-#with open(eos_filename, 'wb') as f:
-#   f.write(r.content)
-
-
+download_file (download_link, eos_filename)
