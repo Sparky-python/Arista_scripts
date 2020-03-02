@@ -63,22 +63,27 @@ import json
 import warnings
 import urllib.request
 from tqdm import tqdm
+from paramiko import SSHClient
+from scp import SCPClient
+import paramiko
+import os
+import os.path
 
-#from paramiko import SSHClient
-#from scp import SCPClient
-#import paramiko
-#import os
 #import time
 #from datetime import datetime
 
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
-parser.add_argument('--api', required=False,
+parser.add_argument('--api', required=True,
                     default='2beb105836a4c44b942eed4666d0cd48', help='arista.com user API key')
 parser.add_argument('--cvp', required=False,
-                    default='192.168.32.10', help='IP address of CVP server')
+                    default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
-                    default='Arista123', help='Root password of CVP server')
+                    default='', help='Root password of CVP server')
+parser.add_argument('--cvp_user', required=False,
+                    default='', help='CVP WebUI Username')
+parser.add_argument('--cvp_passwd', required=False,
+                    default='', help='CVP WebUI Password')
 parser.add_argument('--eos', required=True,
                     default='', help='EOS iamge to download')
 parser.add_argument('--i', required=False, action='store_true',
@@ -89,6 +94,8 @@ args = parser.parse_args()
 api = args.api
 cvp = args.cvp
 rootpw = args.rootpw
+cvp_user = args.cvp_user
+cvp_passwd = args.cvp_passwd
 eos = args.eos
 i = args.i
 
@@ -114,35 +121,61 @@ else:
    z = 0
    eos_filename = "EOS-" + eos + ".swi"
 
-for child in root[z].iter('dir'):
-   if child.attrib == {'label': "EOS-" + eos}:
-      for grandchild in child.iter('file'):
-         if grandchild.text == (eos_filename):
-            path = grandchild.attrib['path']
+if os.path.isfile(eos_filename):
+   print ("\nLocal copy of file already exists")
+else:
+   for child in root[z].iter('dir'):
+      if child.attrib == {'label': "EOS-" + eos}:
+         for grandchild in child.iter('file'):
+            if grandchild.text == (eos_filename):
+               path = grandchild.attrib['path']
 
 
-if path == "":
-   print("\nEOS image does not exist.")
-   sys.exit()
-download_link_url = "https://www.arista.com/custom_data/api/cvp/getDownloadLink/"
-jsonpost = {'sessionCode': session_code, 'filePath': path}
-result = requests.post(download_link_url, data=json.dumps(jsonpost))
-download_link = (result.json()["data"]["url"])
+   if path == "":
+      print("\nEOS image does not exist.")
+      sys.exit()
+   download_link_url = "https://www.arista.com/custom_data/api/cvp/getDownloadLink/"
+   jsonpost = {'sessionCode': session_code, 'filePath': path}
+   result = requests.post(download_link_url, data=json.dumps(jsonpost))
+   download_link = (result.json()["data"]["url"])
 
-print(eos_filename + " is currently downloading....")
+   print(eos_filename + " is currently downloading....")
 
-def download_file(url, filename):
-    """
-    Helper method handling downloading large files from `url` to `filename`. Returns a pointer to `filename`.
-    """
-    chunkSize = 1024
-    r = requests.get(url, stream=True)
-    with open(filename, 'wb') as f:
-        pbar = tqdm( unit="B", total=int( r.headers['Content-Length'] ), unit_scale=True, unit_divisor=1024 )
-        for chunk in r.iter_content(chunk_size=chunkSize): 
-            if chunk: # filter out keep-alive new chunks
+   def download_file(url, filename):
+       """
+       Helper method handling downloading large files from `url` to `filename`. Returns a pointer to `filename`.
+       """
+       chunkSize = 1024
+       r = requests.get(url, stream=True)
+       with open(filename, 'wb') as f:
+          pbar = tqdm( unit="B", total=int( r.headers['Content-Length'] ), unit_scale=True, unit_divisor=1024 )
+          for chunk in r.iter_content(chunk_size=chunkSize): 
+             if chunk: # filter out keep-alive new chunks
                 pbar.update (len(chunk))
                 f.write(chunk)
-    return filename
+       return filename
 
-download_file (download_link, eos_filename)
+   download_file (download_link, eos_filename)
+ 
+if cvp != '':
+   print ("\nUploading " + eos_filename + " to CVP")
+   ssh = SSHClient()
+   ssh.load_system_host_keys()
+   ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+   ssh.connect(cvp, username="root", password=rootpw)
+   scp = SCPClient(ssh.get_transport())
+   scp.put(eos_filename)
+   print ("\nFile copied to CVP server")
+   stdin, stdout, stderr = ssh.exec_command('python -m SimpleHTTPServer 9999')
+  # print (stdout.read())
+  # print (stderr.read())
+   print ("\nWeb server started!")
+   stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swiUrl http://localhost:9999/' + eos_filename + ' --bundle EOS-' + eos + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
+   exit_status = stdout.channel.recv_exit_status()
+   if exit_status == 0:
+      print ("\nUpload complete")
+   else:
+      print ("\nFile not uploaded")
+   stdin, stdout, stderr = ssh.exec_command('fg')
+   stdin, stdout, stderr = ssh.exec_command('\x03')  
+   ssh.close()
