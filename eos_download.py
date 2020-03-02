@@ -68,8 +68,9 @@ from scp import SCPClient
 import paramiko
 import os
 import os.path
+import re
+import time
 
-#import time
 #from datetime import datetime
 
 warnings.filterwarnings("ignore")
@@ -167,15 +168,31 @@ if cvp != '':
    scp.put(eos_filename)
    print ("\nFile copied to CVP server")
    stdin, stdout, stderr = ssh.exec_command('python -m SimpleHTTPServer 9999')
-  # print (stdout.read())
-  # print (stderr.read())
-   print ("\nWeb server started!")
+   time.sleep(2)
+   stdin, stdout, stderr = ssh.exec_command('netstat -tulpn | grep LISTEN | grep 9999')
+   out = stdout.read().decode("utf-8")
+   if out == '':
+      print ("\Web server not started!")
+   else:
+      print ("\nWeb server started!")
+
    stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swiUrl http://localhost:9999/' + eos_filename + ' --bundle EOS-' + eos + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
    exit_status = stdout.channel.recv_exit_status()
    if exit_status == 0:
       print ("\nUpload complete")
    else:
       print ("\nFile not uploaded")
-   stdin, stdout, stderr = ssh.exec_command('fg')
-   stdin, stdout, stderr = ssh.exec_command('\x03')  
-   ssh.close()
+      print (stderr.read())
+      print (stdout.read())
+      print (stdin.read())
+   stdin, stdout, stderr = ssh.exec_command('netstat -tulpn | grep LISTEN | grep 9999')
+   out = stdout.read().decode("utf-8")
+   print (out)
+   print (type(out))
+   m = re.search('[0-9]+/python', out)
+   pid = m.group().rstrip('/python')
+   print (pid)
+   stdin, stdout, stderr = ssh.exec_command('kill -hup ' + pid)
+   print ('Web Server PID killed')
+   if ssh:
+      ssh.close()
