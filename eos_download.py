@@ -100,7 +100,7 @@ def tqdmWrapViewBar(*args, **kwargs):
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=True,
-                    default='2beb105836a4c44b942eed4666d0cd48', help='arista.com user API key')
+                    default='', help='arista.com user API key')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
