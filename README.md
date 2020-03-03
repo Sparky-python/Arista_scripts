@@ -1,6 +1,6 @@
 # Arista_scripts
 
-Just a bunch of useful python scripts to manage and configure Arista switches.
+Just a bunch of useful python scripts to manage and configure Arista switches. Note all written in python3.x so unlikely to work with python2.x.
 
 ## point-to-point-addressing.py
 
@@ -15,6 +15,8 @@ Run the script using the following:
 
 The script can then be scheduled to run daily for example on the jumphost to keep the bug database up to date.
 
+Requires paramiko and scp modules installing
+
 ## eos_download.py
 
 This script is for situations where your CVP server doesn't have internet access but you have a jump host which can access CVP and has internet connectivity. The script downloads the specified EOS image locally and then uploads to the CVP server and creates an image bundle with the image in. It needs as inputs a valid arista.com profile token, the IP address of your CVP server and the root password along with the image version (e.g. 4.22.3F) and the WebGUI username and password of the CVP server you'd like to upload it with. These can be hardcoded into the script by editing the 'default' values in the parser lines of code or passed as commmand line options. 
@@ -24,3 +26,4 @@ The script can also simply be used as a quick way to download images from arista
 Run the script using the following:
 .\eos_download.py --api {API TOKEN} --eos {EOS VERSION} [--i] [--cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user {GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD}]
 
+Requires tqdm, paramiko and scp modules installing
