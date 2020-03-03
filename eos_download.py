@@ -71,7 +71,31 @@ import os.path
 import re
 import time
 
-#from datetime import datetime
+def viewBar(a,b):
+    # original version
+    res = a/int(b)*100
+    sys.stdout.write('\rComplete precent: %.2f %%' % (res))
+    sys.stdout.flush()
+
+def tqdmWrapViewBar(*args, **kwargs):
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        # tqdm not installed - construct and return dummy/basic versions
+        class Foo():
+            @classmethod
+            def close(*c):
+                pass
+        return viewBar, Foo
+    else:
+        pbar = tqdm(*args, **kwargs)  # make a progressbar
+        last = [0]  # last known iteration, start at 0
+        def viewBar2(a, b):
+            pbar.total = int(b)
+            pbar.update(int(a - last[0]))  # update pbar with increment
+            last[0] = a  # update last known iteration
+        return viewBar2, pbar  # return callback, tqdmInstance
+
 
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
@@ -160,39 +184,29 @@ else:
  
 if cvp != '':
    print ("\nUploading " + eos_filename + " to CVP")
+   t = paramiko.Transport((cvp, 22))
+   t.connect(username="root", password=rootpw)
+   sftp = paramiko.SFTPClient.from_transport(t)
+   cbk, pbar = tqdmWrapViewBar(ascii=True, unit="B", unit_scale=True)
+   sftp.put(eos_filename, '/root/' + eos_filename, callback=cbk)
+   pbar.close()
+
    ssh = SSHClient()
    ssh.load_system_host_keys()
    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
    ssh.connect(cvp, username="root", password=rootpw)
-   scp = SCPClient(ssh.get_transport())
-   scp.put(eos_filename)
-   print ("\nFile copied to CVP server")
-   stdin, stdout, stderr = ssh.exec_command('python -m SimpleHTTPServer 9999')
-   time.sleep(2)
-   stdin, stdout, stderr = ssh.exec_command('netstat -tulpn | grep LISTEN | grep 9999')
-   out = stdout.read().decode("utf-8")
-   if out == '':
-      print ("\Web server not started!")
-   else:
-      print ("\nWeb server started!")
+   print ("\nFile copied to CVP server\nNow importing " + eos_filename + " into HDBase.")
 
-   stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swiUrl http://localhost:9999/' + eos_filename + ' --bundle EOS-' + eos + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
+   stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --bundle EOS-' + eos + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
    exit_status = stdout.channel.recv_exit_status()
    if exit_status == 0:
       print ("\nUpload complete")
    else:
-      print ("\nFile not uploaded")
-      print (stderr.read())
-      print (stdout.read())
-      print (stdin.read())
-   stdin, stdout, stderr = ssh.exec_command('netstat -tulpn | grep LISTEN | grep 9999')
-   out = stdout.read().decode("utf-8")
-   print (out)
-   print (type(out))
-   m = re.search('[0-9]+/python', out)
-   pid = m.group().rstrip('/python')
-   print (pid)
-   stdin, stdout, stderr = ssh.exec_command('kill -hup ' + pid)
-   print ('Web Server PID killed')
+      print ("\nFile not uploaded because ")
+      if (stdout.read()).decode("utf-8") == "Connecting to CVP\nImage " + eos_filename + " already exists. Aborting.\n":
+         print ("Image already exists in CVP")
+      else:
+         print ("\nSome other error")
+         print (stdout.read().decode("utf-8"))
    if ssh:
       ssh.close()
