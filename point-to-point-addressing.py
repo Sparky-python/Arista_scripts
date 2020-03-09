@@ -63,7 +63,7 @@ for host in topology:
         if interface["ip_address"] == '':
             switch = pyeapi.connect_to(host)
 # configure the interface on the current host with the next available IP 
-            switch.config(['interface ' + interface["local_int"], 'no switchport', 'ip address ' + str(list(available_subnets[n].hosts())[0]) + '/30'])
+            switch.config(['interface ' + interface["local_int"], 'no switchport', 'ip pim sparse-mode', 'ip address ' + str(list(available_subnets[n].hosts())[0]) + '/30'])
             topology[host][r]["ip_address"] = str(list(available_subnets[n].hosts())[0])
             s = 0
             for neighbor_int in topology[(topology[host][r]["neighbor_sw"])]:
