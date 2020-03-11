@@ -78,12 +78,14 @@ import os.path
 import re
 import time
 
+# part of progress bar code
 def viewBar(a,b):
     # original version
     res = a/int(b)*100
     sys.stdout.write('\rComplete precent: %.2f %%' % (res))
     sys.stdout.flush()
 
+# part of progress bar code
 def tqdmWrapViewBar(*args, **kwargs):
     try:
         from tqdm import tqdm
@@ -103,7 +105,23 @@ def tqdmWrapViewBar(*args, **kwargs):
             last[0] = a  # update last known iteration
         return viewBar2, pbar  # return callback, tqdmInstance
 
+# function to download a file and display progress bar using tqdm        
+def download_file(url, filename):
+   """
+   Helper method handling downloading large files from `url` to `filename`. Returns a pointer to `filename`.
+   """
+   chunkSize = 1024
+   r = requests.get(url, stream=True)
+   with open(filename, 'wb') as f:
+      pbar = tqdm( unit="B", total=int( r.headers['Content-Length'] ), unit_scale=True, unit_divisor=1024 )
+      for chunk in r.iter_content(chunk_size=chunkSize): 
+         if chunk: # filter out keep-alive new chunks
+            pbar.update (len(chunk))
+            f.write(chunk)
+   return filename
 
+# use argparse to take the user input, can file in default values here if the user wishes
+# especially useful for the API key which won't change for a particular user
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=True,
@@ -124,19 +142,22 @@ parser.add_argument('--cvp_passwd', required=False,
 args = parser.parse_args()
 
 api = args.api
+file_list = args.file # this will be a list of the files requested to be downloaded
 cvp = args.cvp
 rootpw = args.rootpw
 cvp_user = args.cvp_user
 cvp_passwd = args.cvp_passwd
-file_list = args.file
 
+# the api key needs converting into base64 which outputs a byte value and then decoding to a string
 creds = (base64.b64encode(api.encode())).decode("utf-8")
 
+# there are 3 steps to downloading an image via the API, first is to get a session code
 session_code_url = "https://www.arista.com/custom_data/api/cvp/getSessionCode/"
 jsonpost = {'accessToken': creds}
 result = requests.post(session_code_url, data=json.dumps(jsonpost))
 session_code = (result.json()["data"]["session_code"])
 
+# then get the current folder tree, similar to what you see on the download page in XML format
 folder_tree_url = "https://www.arista.com/custom_data/api/cvp/getFolderTree/"
 jsonpost = {'sessionCode': session_code}
 result = requests.post(folder_tree_url, data=json.dumps(jsonpost))
@@ -145,27 +166,28 @@ folder_tree = (result.json()["data"]["xml"])
 root = ET.fromstring(folder_tree)
 path = ""
 
+# for each image the user wishes to download
 for image in file_list:
-   if "-INT" in image:
-      z = 1
-      eos_filename = "EOS-" + image + ".swi"
-      image = image.rstrip("-INT")
-   elif "TerminAttr" in image:
-      z = 3
-      eos_filename = image + "-1.swix"
-   else:
-      z = 0
-      eos_filename = "EOS-" + image + ".swi"
+   if "-INT" in image: # if the user wants the international/federal variant
+      z = 1 # corresponds to "EOS International / Federal" top level folder
+      eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F-INT.swi
+      image = image.rstrip("-INT") # image should be 4.22.1F, need to remove the -INT
+   elif "TerminAttr" in image: # if the user wants a TerminAttr image
+      z = 3 # corresponds to "CloudVision" top level folder
+      eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
+   else: # otherwise it's a normal EOS image they're after
+      z = 0 # corresponds to "EOS" top level folder
+      eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
 
-   if os.path.isfile(eos_filename):
+   if os.path.isfile(eos_filename): # check if the image exists in the current directory, if so no need to download again
       print ("\nLocal copy of file already exists")
    else:
       for child in root[z].iter('dir'):
          if child.attrib == {'label': "EOS-" + image}:
             for grandchild in child.iter('file'):
                if grandchild.text == (eos_filename):
-                  path = grandchild.attrib['path']
-         elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  :
+                  path = grandchild.attrib['path'] # corresponds to the download path
+         elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  : # special case for TerminAttr as some releases have -1 in the folder name others don't but the filename always has the -1
             print (child.attrib)
             for grandchild in child.iter('file'):
                if grandchild.text == (eos_filename):
@@ -173,33 +195,23 @@ for image in file_list:
 
 
 
-      if path == "":
+      if path == "": # this means we haven't found the image so we exit the script at this point
          print("\nFile " + eos_filename +" does not exist.")
          sys.exit()
+      # the 3rd part of downloading a file is to use the path and session code to get the actual direct download link URL
       download_link_url = "https://www.arista.com/custom_data/api/cvp/getDownloadLink/"
       jsonpost = {'sessionCode': session_code, 'filePath': path}
       result = requests.post(download_link_url, data=json.dumps(jsonpost))
       download_link = (result.json()["data"]["url"])
 
       print(eos_filename + " is currently downloading....")
-
-      def download_file(url, filename):
-          """
-          Helper method handling downloading large files from `url` to `filename`. Returns a pointer to `filename`.
-          """
-          chunkSize = 1024
-          r = requests.get(url, stream=True)
-          with open(filename, 'wb') as f:
-             pbar = tqdm( unit="B", total=int( r.headers['Content-Length'] ), unit_scale=True, unit_divisor=1024 )
-             for chunk in r.iter_content(chunk_size=chunkSize): 
-                if chunk: # filter out keep-alive new chunks
-                   pbar.update (len(chunk))
-                   f.write(chunk)
-          return filename
-
+      # download the file to the current folder
       download_file (download_link, eos_filename)
 
-if cvp != '':
+if cvp != '': # if the CVP IP address has been specified when running the script, the user must want to upload the image to CVP
+   if (rootpw == '') or (cvp_user == '') or (cvp_passwd == ''):
+      print ("\nTo upload images to CVP, the root password, GUI username and password all need to be specified. Please re-run the script with the --rootpw, --cvp_user and --cvp_passwd options")
+      sys.exit()
    t = paramiko.Transport((cvp, 22))
    t.connect(username="root", password=rootpw)
    sftp = paramiko.SFTPClient.from_transport(t)
