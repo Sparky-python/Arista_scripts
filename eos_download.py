@@ -51,7 +51,7 @@ optional international flag options are used (--i)
 
 INSTALLATION
 1. python3 needs to be installed on the jump host
-2. pip3 install scp paramiko tqdm
+2. pip3 install scp paramiko tqdm requests
 3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/eos_download.py
 4. Run the script using the following: .\eos_download.py --api {API TOKEN} --file 
 {EOS VERSION} [--file {TERMINATTR VERSION}] [--cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
@@ -128,6 +128,8 @@ parser.add_argument('--api', required=True,
                     default='', help='arista.com user API key')
 parser.add_argument('--file', required=True, action='append',
                     default=[], help='EOS and swix iamges to download, repeat --file option for each file. EOS images should be in the form 4.22.1F for normal images, 4.22.1F-INT for the international/federal version and TerminAttr-1.7.4 for TerminAttr files')
+parser.add_argument('--virt', required=False,
+                    default='', help='Type of EOS image required, vEOS, vEOS-lab or cEOS')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -136,15 +138,19 @@ parser.add_argument('--cvp_user', required=False,
                     default='', help='CVP WebUI Username')
 parser.add_argument('--cvp_passwd', required=False,
                     default='', help='CVP WebUI Password')
+parser.add_argument('--eve', required=False,
+                    default='', help='Use this option if you're running this on Eve-NG')
 
 args = parser.parse_args()
 
 api = args.api
 file_list = args.file # this will be a list of the files requested to be downloaded
+virt = args.virt
 cvp = args.cvp
 rootpw = args.rootpw
 cvp_user = args.cvp_user
 cvp_passwd = args.cvp_passwd
+eve = args.eve
 
 # the api key needs converting into base64 which outputs a byte value and then decoding to a string
 creds = (base64.b64encode(api.encode())).decode("utf-8")
@@ -175,22 +181,27 @@ for image in file_list:
       eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
    else: # otherwise it's a normal EOS image they're after
       z = 0 # corresponds to "EOS" top level folder
-      if "vEOS" in image:
-         eos_filename = image + ".vmdk"
-      eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
+      if virt == 'cEOS':
+         eos_filename = "cEOS-lab-" + image + ".vmdk"
+      elif virt == 'vEOS':
+         eos_filename = "vEOS-" + image + ".vmdk"
+      elif virt == 'vEOS-lab':
+         eos_filename = "vEOS-lab-" + image + ".vmdk"
+      else:
+         eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
 
    if os.path.isfile(eos_filename): # check if the image exists in the current directory, if so no need to download again
       print ("\nLocal copy of file already exists")
    else:
       for child in root[z].iter('dir'):
-         print(child.attrib)
+         # print(child.attrib)
          if child.attrib == {'label': "EOS-" + image}:
             for grandchild in child.iter('file'):
-               print(grandchild.text)
+               # print(grandchild.text)
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path'] # corresponds to the download path
          elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  : # special case for TerminAttr as some releases have -1 in the folder name others don't but the filename always has the -1
-            print (child.attrib)
+            # print (child.attrib)
             for grandchild in child.iter('file'):
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path']
@@ -263,3 +274,17 @@ if cvp != '': # if the CVP IP address has been specified when running the script
          print ("Some other error")
    if ssh:
       ssh.close()
+
+if eve:
+   os.system("/opt/qemu/bin/qemu-img convert -f vmdk -O qcow2 " + eos_filename + " hda.qcow2")
+   eos_folder_name = ""
+   x = eos_filename.split("-")
+   for y in x[:-1]:
+      eos_folder_name+=str(y.lower())
+      eos_folder_name+="-"
+   eos_folder_name+=str(x[-1])
+
+   os.system("mkdir -p /opt/unetlab/addons/qemu/" + eos_folder_name.rstrip(".vmdk"))
+   os.system("mv hda.qcow2 /opt/unetlab/addons/qemu/" + eos_folder_name.rstrip(".vmdk"))
+   os.system("/opt/unetlab/wrappers/unl_wrapper -a fixpermissions")
+   os.system("rm "+ eos_filename)
