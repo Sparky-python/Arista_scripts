@@ -139,7 +139,7 @@ parser.add_argument('--cvp_user', required=False,
 parser.add_argument('--cvp_passwd', required=False,
                     default='', help='CVP WebUI Password')
 parser.add_argument('--eve', required=False,
-                    default='', help='Use this option if you're running this on Eve-NG')
+                    default='', help="Use this option if you're running this on Eve-NG")
 
 args = parser.parse_args()
 
