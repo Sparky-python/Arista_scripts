@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
-# Copyright (c) 2017, Arista Networks, Inc.
+# Copyright (c) 2020, Arista Networks, Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -42,11 +42,13 @@ file will be left in the directory with the script, it is recommended to leave t
 place as the script will compare this local copy to the latest downloaded one and if they are
 the same then no further action will be taken.
 To learn more about BugAlerts see: https://eos.arista.com/eos-4-17-0f/bug-alerts/
+
 INSTALLATION
 1. python3 needs to be installed on the jump host
-2. wget https://github.com/coreyhines/Arista/raw/master/bugalertUpdate.py
-3. run the script with.. ./bugalertUpdate.py --api <BUGALERTS TOKEN FROM ARISTA.COM> --cvp <CVP SERVER IP ADDRESS> --rootpw <ROOT PASSWORD OF CVP SERVER>
-4. python pip install scp, paramiko
+2. pip3 install scp paramiko
+3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/bugalertUpdate.py
+4. run the script with.. ./bugalertUpdate.py --api <BUGALERTS TOKEN FROM ARISTA.COM> --cvp 
+<CVP SERVER IP ADDRESS> --rootpw <ROOT PASSWORD OF CVP SERVER>
 
 Credit to Corey Hinds for original script which this was based on to update BugAlerts file 
 in CVX

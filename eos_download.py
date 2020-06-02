@@ -120,16 +120,14 @@ def download_file(url, filename):
             f.write(chunk)
    return filename
 
-# use argparse to take the user input, can file in default values here if the user wishes
+# use argparse to take the user input, can fill in default values here if the user wishes
 # especially useful for the API key which won't change for a particular user
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=True,
                     default='', help='arista.com user API key')
 parser.add_argument('--file', required=True, action='append',
-                    default=[], help='EOS and swix iamges to download, repeat --file option for each file. EOS imag
-es should be in the form 4.22.1F for normal images, 4.22.1F-INT for the international/federal version and TerminAtt
-r-1.7.4 for TerminAttr files')
+                    default=[], help='EOS and swix iamges to download, repeat --file option for each file. EOS images should be in the form 4.22.1F for normal images, 4.22.1F-INT for the international/federal version and TerminAttr-1.7.4 for TerminAttr files')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -177,14 +175,18 @@ for image in file_list:
       eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
    else: # otherwise it's a normal EOS image they're after
       z = 0 # corresponds to "EOS" top level folder
+      if "vEOS" in image:
+         eos_filename = image + ".vmdk"
       eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
 
    if os.path.isfile(eos_filename): # check if the image exists in the current directory, if so no need to download again
       print ("\nLocal copy of file already exists")
    else:
       for child in root[z].iter('dir'):
+         print(child.attrib)
          if child.attrib == {'label': "EOS-" + image}:
             for grandchild in child.iter('file'):
+               print(grandchild.text)
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path'] # corresponds to the download path
          elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  : # special case for TerminAttr as some releases have -1 in the folder name others don't but the filename always has the -1
@@ -245,18 +247,15 @@ if cvp != '': # if the CVP IP address has been specified when running the script
    print ("\nFile copied to CVP server\nNow importing " + eos_filename + " into HDBase.")
 
    if eos_filename and terminattr_filename:
-      stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --swix
- ' + terminattr_filename + ' --bundle EOS-' + eos_bundle + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
+      stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --swix' + terminattr_filename + ' --bundle EOS-' + eos_bundle + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
    else:
-      stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --bund
-le EOS-' + eos_bundle + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
+      stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --bundle EOS-' + eos_bundle + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
    exit_status = stdout.channel.recv_exit_status()
    if exit_status == 0:
       print ("\nUpload complete")
    else:
       print ("\nFile not uploaded because ")
-      if (stdout.read()).decode("utf-8") == "Connecting to CVP\nImage " + eos_filename + " already exists. Aborting
-.\n":
+      if (stdout.read()).decode("utf-8") == "Connecting to CVP\nImage " + eos_filename + " already exists. Aborting.\n":
          print ("Image already exists in CVP")
       elif "SWI does not contain a supported TerminAttr version" in (stderr.read()).decode("UTF-8"):
          print ("SWI does not contain a supported TerminAttr version.")
