@@ -138,8 +138,8 @@ parser.add_argument('--cvp_user', required=False,
                     default='', help='CVP WebUI Username')
 parser.add_argument('--cvp_passwd', required=False,
                     default='', help='CVP WebUI Password')
-parser.add_argument('--eve', required=False,
-                    default='', help="Use this option if you're running this on Eve-NG")
+parser.add_argument('--eve', required=False, action='store_true',
+                    help="Use this option if you're running this on Eve-NG")
 
 args = parser.parse_args()
 
@@ -200,6 +200,8 @@ for image in file_list:
                # print(grandchild.text)
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path'] # corresponds to the download path
+               elif grandchild.text == (eos_filename + '.sha512sum'):
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
          elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  : # special case for TerminAttr as some releases have -1 in the folder name others don't but the filename always has the -1
             # print (child.attrib)
             for grandchild in child.iter('file'):
@@ -216,10 +218,25 @@ for image in file_list:
       jsonpost = {'sessionCode': session_code, 'filePath': path}
       result = requests.post(download_link_url, data=json.dumps(jsonpost))
       download_link = (result.json()["data"]["url"])
+      jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
+      sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
+      sha512_download_link = (sha512_result.json()["data"]["url"])
 
       print(eos_filename + " is currently downloading....")
       # download the file to the current folder
       download_file (download_link, eos_filename)
+
+      download_file (sha512_download_link, eos_filename + '.sha512sum')
+      for line in urllib.request.urlopen(sha512_download_link):
+         sha512_file = line
+      
+      download_file_chksum = os.popen("openssl sha512 " + eos_filename).read()  # calculate the SHA512 checksum of the downloaded file
+
+      if (download_file_chksum.split(" ")[1].rstrip('\n')) == (sha512_file.decode("utf-8").split(" ")[0]):
+         print ("\nSHA512 checksum correct")
+      else:
+         print ("\nSHA512 checksum incorrect, downloaded file must be corrupt.")
+         sys.exit()
 
 if cvp != '': # if the CVP IP address has been specified when running the script, the user must want to upload the image to CVP
    if (rootpw == '') or (cvp_user == '') or (cvp_passwd == ''):
@@ -275,7 +292,7 @@ if cvp != '': # if the CVP IP address has been specified when running the script
    if ssh:
       ssh.close()
 
-if eve:
+if eve == "True":
    os.system("/opt/qemu/bin/qemu-img convert -f vmdk -O qcow2 " + eos_filename + " hda.qcow2")
    eos_folder_name = ""
    x = eos_filename.split("-")
