@@ -292,7 +292,7 @@ if cvp != '': # if the CVP IP address has been specified when running the script
    if ssh:
       ssh.close()
 
-if eve == "True":
+if eve:
    os.system("/opt/qemu/bin/qemu-img convert -f vmdk -O qcow2 " + eos_filename + " hda.qcow2")
    eos_folder_name = ""
    x = eos_filename.split("-")
