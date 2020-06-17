@@ -29,6 +29,14 @@ The script can also simply be used as a quick way to download images from arista
 This script can also be used on an Eve-NG server to add EOS images ready for use in a topology. Use the --virt option to specify vEOS or vEOS-lab and add '--eve True' at the end of the arguments. This will download the image, covert to a qcow2 format, move to a folder named based on the image ready to choose in the GUI and finally delete the downloaded image.
 
 Run the script using the following:
-.\eos_download.py --api {API TOKEN} --file {EOS VERSION} [--file {TERMINATTR VERSION}] [--virt {TYPE OF VIRTUAL IMAGE} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user {GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve True]
+.\eos_download.py --api {API TOKEN} --ver {EOS VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
+{GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve]
 
 Requires tqdm, paramiko, requests and scp modules installing
+
+## dns_entries.py
+
+This script uses pyeapi, parses all the L3 interfaces on all the switches in the eapi.conf file and creates a hosts file with DNS to IP address mappings in the format 'ip host <HOSTNAME-INTERFACE> <INTERFACE-IP-ADDRESS>' which can then be copied and pasted into EOS devices. Then things like traceroute will be able to show all the hosts in the path for example.
+
+Run the script using the following:
+.\dns_entries.py
