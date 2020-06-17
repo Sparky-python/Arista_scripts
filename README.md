@@ -40,3 +40,7 @@ This script uses pyeapi, parses all the L3 interfaces on all the switches in the
 
 Run the script using the following:
 .\dns_entries.py
+
+## run_command.py
+
+Script to apply commands to all switches defined in eapi.conf. Can simply apply a single command using --conf, used to create Loopback interfaces with incrementing IP address using --interface and --addr or can read in a file containing a chunk of config to be applied to all devices using --config_file.
