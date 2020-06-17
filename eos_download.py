@@ -46,16 +46,20 @@ parser lines of code or passed as commmand line options.
 The script can also simply be used as a quick way to download images from arista.com 
 without having to login to the website with SSO, browse through to find the right image 
 and download through a browser. For this use case only the API token, image version and 
-optional international flag options are used (--i)
+optional type of image option (for International, 64-bit, vEOS etc. images)
+
+Finally this script can be installed on an Eve-NG server to download an image and then create
+the qcow2 image in a folder based on the image version for use in Eve topologies. Just add 
+--eve to the command when run. Note vEOS-lab images are best to use for Eve-NG.
 
 
 INSTALLATION
-1. python3 needs to be installed on the jump host
+1. python3 needs to be installed on the host
 2. pip3 install scp paramiko tqdm requests
 3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/eos_download.py
-4. Run the script using the following: .\eos_download.py --api {API TOKEN} --file 
-{EOS VERSION} [--file {TERMINATTR VERSION}] [--cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
-{GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD}]
+4. Run the script using the following: .\eos_download.py --api {API TOKEN} --ver 
+{EOS VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
+{GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve]
 
 
 """
@@ -126,10 +130,10 @@ warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=True,
                     default='', help='arista.com user API key')
-parser.add_argument('--file', required=True, action='append',
-                    default=[], help='EOS and swix iamges to download, repeat --file option for each file. EOS images should be in the form 4.22.1F for normal images, 4.22.1F-INT for the international/federal version and TerminAttr-1.7.4 for TerminAttr files')
-parser.add_argument('--virt', required=False,
-                    default='', help='Type of EOS image required, vEOS, vEOS-lab or cEOS')
+parser.add_argument('--ver', required=True, action='append',
+                    default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F and TerminAttr-1.7.4 for TerminAttr files')
+parser.add_argument('--img', required=False,
+                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS or cEOS64. If none specified assumes normal EOS image for switches')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -139,13 +143,13 @@ parser.add_argument('--cvp_user', required=False,
 parser.add_argument('--cvp_passwd', required=False,
                     default='', help='CVP WebUI Password')
 parser.add_argument('--eve', required=False, action='store_true',
-                    help="Use this option if you're running this on Eve-NG")
+                    help="Use this option if you're running this on Eve-NG to create a qcow2 image")
 
 args = parser.parse_args()
 
 api = args.api
-file_list = args.file # this will be a list of the files requested to be downloaded
-virt = args.virt
+file_list = args.ver # this will be a list of the files requested to be downloaded
+img = args.img
 cvp = args.cvp
 rootpw = args.rootpw
 cvp_user = args.cvp_user
@@ -172,21 +176,33 @@ path = ""
 
 # for each image the user wishes to download
 for image in file_list:
-   if "-INT" in image: # if the user wants the international/federal variant
+   if 'INT' in img: # if the user wants the international/federal variant
       z = 1 # corresponds to "EOS International / Federal" top level folder
-      eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F-INT.swi
-      image = image.rstrip("-INT") # image should be 4.22.1F, need to remove the -INT
+      if img == 'INT':
+         eos_filename = "EOS-" + image + "-INT.swi" # filename should be something like EOS-4.22.1F-INT.swi
+         image = image.rstrip("-INT") # image should be 4.22.1F, need to remove the -INT
+      elif img == '2GB-INT':
+         eos_filename = "EOS-2GB-" + image + "-INT.swi" # filename should be something like EOS-4.22.1F-INT.swi
+         image = image.rstrip("-INT") # image should be 4.22.1F, need to remove the -INT
    elif "TerminAttr" in image: # if the user wants a TerminAttr image
       z = 3 # corresponds to "CloudVision" top level folder
       eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
    else: # otherwise it's a normal EOS image they're after
       z = 0 # corresponds to "EOS" top level folder
-      if virt == 'cEOS':
-         eos_filename = "cEOS-lab-" + image + ".vmdk"
-      elif virt == 'vEOS':
+      if img == 'cEOS':
+         eos_filename = "cEOS-lab-" + image + ".tar.xz"
+      elif img == 'cEOS64':
+         eos_filename = "cEOS64-lab-" + image + ".tar.xz"
+      elif img == 'vEOS':
          eos_filename = "vEOS-" + image + ".vmdk"
-      elif virt == 'vEOS-lab':
+      elif img == 'vEOS-lab':
          eos_filename = "vEOS-lab-" + image + ".vmdk"
+      elif img == 'vEOS64-lab':
+         eos_filename = "vEOS64-lab-" + image + ".vmdk"
+      elif img == '2GB':
+         eos_filename = "EOS-2GB-" + image + ".swi"
+      elif img == '64':
+         eos_filename = "EOS64-" + image + ".swi"
       else:
          eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
 
@@ -293,6 +309,7 @@ if cvp != '': # if the CVP IP address has been specified when running the script
       ssh.close()
 
 if eve:
+   print ("Creating qcow2 image")
    os.system("/opt/qemu/bin/qemu-img convert -f vmdk -O qcow2 " + eos_filename + " hda.qcow2")
    eos_folder_name = ""
    x = eos_filename.split("-")
@@ -305,3 +322,4 @@ if eve:
    os.system("mv hda.qcow2 /opt/unetlab/addons/qemu/" + eos_folder_name.rstrip(".vmdk"))
    os.system("/opt/unetlab/wrappers/unl_wrapper -a fixpermissions")
    os.system("rm "+ eos_filename)
+   print ("Image successfully created")
