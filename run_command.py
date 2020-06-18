@@ -22,7 +22,9 @@ parser.add_argument('--interface', required=False,
 parser.add_argument('--addr', required=False,
                     default='', help='Address range to use')
 parser.add_argument('--config_file', required=False,
-                    default='', help='File with config in to apply')                    
+                    default='', help='File with config in to apply')  
+parser.add_argument('--remove', required=False, action='store_true',
+                    default='', help='If used will remove the config in the specified file by adding "no" to each line of config')                                        
 
 args = parser.parse_args()
 
@@ -30,6 +32,7 @@ conf = args.conf
 interface = args.interface
 addr = args.addr
 config_file = args.config_file
+remove = args.remove
 
 if addr:
     network_range = ipaddress.ip_network(addr)
@@ -59,8 +62,12 @@ if config_file:
     with open(config_file, 'r') as config_file_object:
         line = config_file_object.readline()
         while line:
-            config_list.append(line)
-            line = config_file_object.readline()
+            if remove:
+               config_list.append("no " + line)
+               line = config_file_object.readline()
+            else:
+               config_list.append(line)
+               line = config_file_object.readline()
 
 for x in hosts:    
     switch = pyeapi.connect_to(x)
