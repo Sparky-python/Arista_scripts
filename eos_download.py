@@ -52,6 +52,10 @@ Finally this script can be installed on an Eve-NG server to download an image an
 the qcow2 image in a folder based on the image version for use in Eve topologies. Just add 
 --eve to the command when run. Note vEOS-lab images are best to use for Eve-NG.
 
+If running the script on a non-shared environment, the user's API key could be hardcoded into
+the script to save having to use it on the command line. To do this, enter the API key as the
+default value in the argparse section and change the required value to False.
+
 
 INSTALLATION
 1. python3 needs to be installed on the host
