@@ -58,7 +58,7 @@ INSTALLATION
 2. pip3 install scp paramiko tqdm requests
 3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/eos_download.py
 4. Run the script using the following: .\eos_download.py --api {API TOKEN} --ver 
-{EOS VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
+{EOS VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
 {GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve]
 
 
@@ -142,7 +142,7 @@ parser.add_argument('--api', required=True,
 parser.add_argument('--ver', required=True, action='append',
                     default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F and TerminAttr-1.7.4 for TerminAttr files')
 parser.add_argument('--img', required=False,
-                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS or cEOS64. If none specified assumes normal EOS image for switches')
+                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64 or source (to download the source files). If none specified assumes normal EOS image for switches')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -212,6 +212,8 @@ for image in file_list:
          eos_filename = "EOS-2GB-" + image + ".swi"
       elif img == '64':
          eos_filename = "EOS64-" + image + ".swi"
+      elif img == 'source':
+         eos_filename = "EOS-" + image + "-source.tar"
       else:
          eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
 
@@ -245,30 +247,32 @@ for image in file_list:
       jsonpost = {'sessionCode': session_code, 'filePath': path}
       result = requests.post(download_link_url, data=json.dumps(jsonpost))
       download_link = (result.json()["data"]["url"])
-      jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
-      sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
-      sha512_download_link = (sha512_result.json()["data"]["url"])
+      if img != 'source':
+         jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
+         sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
+         sha512_download_link = (sha512_result.json()["data"]["url"])
 
       print(eos_filename + " is currently downloading....")
       # download the file to the current folder
       download_file (download_link, eos_filename)
 
-      if "TerminAttr" in image:
-         download_file (sha512_download_link, eos_filename + '.md5sum')
-      else:
-         download_file (sha512_download_link, eos_filename + '.sha512sum')
-      for line in urllib.request.urlopen(sha512_download_link):
-         sha512_file = line
-      
-      if "TerminAttr" in image:
-         download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for TerminAttr images
-         if (download_file_chksum == (sha512_file.decode("utf-8").split(" ")[0])):
-            print ("\nMD5 checksum correct")
+      if img != 'source':
+         if "TerminAttr" in image:
+            download_file (sha512_download_link, eos_filename + '.md5sum')
          else:
-            print ("\nMD5 checksum incorrect, downloaded file must be corrupt.")
-            sys.exit()
-      else:
-         download_file_chksum = os.popen("openssl sha512 " + eos_filename).read()  # calculate the SHA512 checksum of the downloaded file
+            download_file (sha512_download_link, eos_filename + '.sha512sum')
+         for line in urllib.request.urlopen(sha512_download_link):
+            sha512_file = line
+      
+         if "TerminAttr" in image:
+            download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for TerminAttr images
+            if (download_file_chksum == (sha512_file.decode("utf-8").split(" ")[0])):
+               print ("\nMD5 checksum correct")
+            else:
+               print ("\nMD5 checksum incorrect, downloaded file must be corrupt.")
+               sys.exit()
+         else:
+            download_file_chksum = os.popen("openssl sha512 " + eos_filename).read()  # calculate the SHA512 checksum of the downloaded file
 
          if (download_file_chksum.split(" ")[1].rstrip('\n')) == (sha512_file.decode("utf-8").split(" ")[0]):
             print ("\nSHA512 checksum correct")
