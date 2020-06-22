@@ -81,6 +81,7 @@ import os
 import os.path
 import re
 import time
+import hashlib
 
 # part of progress bar code
 def viewBar(a,b):
@@ -123,6 +124,14 @@ def download_file(url, filename):
             pbar.update (len(chunk))
             f.write(chunk)
    return filename
+
+def md5(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
 
 # use argparse to take the user input, can fill in default values here if the user wishes
 # especially useful for the API key which won't change for a particular user
@@ -223,6 +232,8 @@ for image in file_list:
             for grandchild in child.iter('file'):
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path']
+               elif grandchild.text == (eos_filename + '.md5sum'):
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
 
 
 
@@ -242,17 +253,28 @@ for image in file_list:
       # download the file to the current folder
       download_file (download_link, eos_filename)
 
-      download_file (sha512_download_link, eos_filename + '.sha512sum')
+      if "TerminAttr" in image:
+         download_file (sha512_download_link, eos_filename + '.md5sum')
+      else:
+         download_file (sha512_download_link, eos_filename + '.sha512sum')
       for line in urllib.request.urlopen(sha512_download_link):
          sha512_file = line
       
-      download_file_chksum = os.popen("openssl sha512 " + eos_filename).read()  # calculate the SHA512 checksum of the downloaded file
-
-      if (download_file_chksum.split(" ")[1].rstrip('\n')) == (sha512_file.decode("utf-8").split(" ")[0]):
-         print ("\nSHA512 checksum correct")
+      if "TerminAttr" in image:
+         download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for TerminAttr images
+         if (download_file_chksum == (sha512_file.decode("utf-8").split(" ")[0])):
+            print ("\nMD5 checksum correct")
+         else:
+            print ("\nMD5 checksum incorrect, downloaded file must be corrupt.")
+            sys.exit()
       else:
-         print ("\nSHA512 checksum incorrect, downloaded file must be corrupt.")
-         sys.exit()
+         download_file_chksum = os.popen("openssl sha512 " + eos_filename).read()  # calculate the SHA512 checksum of the downloaded file
+
+         if (download_file_chksum.split(" ")[1].rstrip('\n')) == (sha512_file.decode("utf-8").split(" ")[0]):
+            print ("\nSHA512 checksum correct")
+         else:
+            print ("\nSHA512 checksum incorrect, downloaded file must be corrupt.")
+            sys.exit()
 
 if cvp != '': # if the CVP IP address has been specified when running the script, the user must want to upload the image to CVP
    if (rootpw == '') or (cvp_user == '') or (cvp_passwd == ''):
