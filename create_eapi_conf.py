@@ -1,10 +1,7 @@
 #!/usr/bin/python3
 
-import pyeapi
 import argparse
 import ssl
-import ipaddress
-import re
 import socket, struct
 from jsonrpclib import Server
 
