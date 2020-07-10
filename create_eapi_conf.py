@@ -1,5 +1,17 @@
 #!/usr/bin/python3
 
+"""
+DESCRIPTION
+Script to create an eapi.conf file for use with pyeapi given an existing network configured within a block of management IP addresses (script will skip over any IP's it can't connect to). Script will get the hostname from each switch and build the eapi.conf file. Needs the switch username and password input. Assumes https as the transport for each switch.
+
+Run the script using the following:
+.\create_eapi_conf.py --addr 192.168.1.1 --num 20 --user cvpadmin --passwd arista123
+
+This example will try to connect to all IP's from 192.168.1.1 to 192.168.1.20
+
+"""
+__author__ = 'marayson'
+
 import argparse
 import ssl
 import socket, struct
