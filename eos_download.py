@@ -144,9 +144,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=True,
                     default='', help='arista.com user API key')
 parser.add_argument('--ver', required=True, action='append',
-                    default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F and TerminAttr-1.7.4 for TerminAttr files')
+                    default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F, cvp-2020.1.1 for CVP and TerminAttr-1.7.4 for TerminAttr files')
 parser.add_argument('--img', required=False,
-                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64 or source (to download the source files). If none specified assumes normal EOS image for switches')
+                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64 or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag.')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -200,6 +200,16 @@ for image in file_list:
    elif "TerminAttr" in image: # if the user wants a TerminAttr image
       z = 3 # corresponds to "CloudVision" top level folder
       eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
+   elif "cvp" in image: # if the user wants a CVP image
+      z = 3 # corresponds to "CloudVision" top level folder
+      if img == 'ova':
+         eos_filename = image + ".ova"
+      elif img == 'kvm':
+         eos_filename = image + "-kvm.tgz"
+      elif img == 'rpm':
+         eos_filename = image[:4] + "rpm-installer-" + image[4:]
+      elif img == 'upgrade':
+         eos_filename = image[:4] + "upgrade-" + image[4:] + ".tgz"
    else: # otherwise it's a normal EOS image they're after
       z = 0 # corresponds to "EOS" top level folder
       if img == 'cEOS':
@@ -225,22 +235,28 @@ for image in file_list:
       print ("\nLocal copy of file already exists")
    else:
       for child in root[z].iter('dir'):
-         # print(child.attrib)
+         #print(child.attrib)
          if child.attrib == {'label': "EOS-" + image}:
             for grandchild in child.iter('file'):
-               # print(grandchild.text)
+               #print(grandchild.text)
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path'] # corresponds to the download path
                elif grandchild.text == (eos_filename + '.sha512sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
          elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  : # special case for TerminAttr as some releases have -1 in the folder name others don't but the filename always has the -1
-            # print (child.attrib)
+            #print (child.attrib)
             for grandchild in child.iter('file'):
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path']
                elif grandchild.text == (eos_filename + '.md5sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
-
+         elif child.attrib == {'label': image[4:]} : # special case for CVP as labels are in the format 2020.1.1 so we need to remove 'cvp-' to match
+            #print (child.attrib)
+            for grandchild in child.iter('file'):
+               if grandchild.text == (eos_filename):
+                  path = grandchild.attrib['path']
+               elif grandchild.text == (eos_filename + '.md5'):
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
 
 
       if path == "": # this means we haven't found the image so we exit the script at this point
