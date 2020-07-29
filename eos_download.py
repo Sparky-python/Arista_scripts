@@ -46,7 +46,10 @@ parser lines of code or passed as commmand line options.
 The script can also simply be used as a quick way to download images from arista.com 
 without having to login to the website with SSO, browse through to find the right image 
 and download through a browser. For this use case only the API token, image version and 
-optional type of image option (for International, 64-bit, vEOS etc. images)
+optional type of image option (for International, 64-bit, vEOS etc. images). CVP releases
+can also be downloaded by specifying the version of CVP with the --ver argument in the form
+cvp-2020.1.1 for example and then with the --img argument, whether the ova, kvm, rpm or 
+upgrade variant is required.
 
 Finally this script can be installed on an Eve-NG server to download an image and then create
 the qcow2 image in a folder based on the image version for use in Eve topologies. Just add 
@@ -62,7 +65,7 @@ INSTALLATION
 2. pip3 install scp paramiko tqdm requests
 3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/eos_download.py
 4. Run the script using the following: .\eos_download.py --api {API TOKEN} --ver 
-{EOS VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
+{EOS VERSION|TERMINATTR VERSION|CVP VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source|ova|kvm|rpm|upgrade} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
 {GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve]
 
 
@@ -249,14 +252,14 @@ for image in file_list:
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path']
                elif grandchild.text == (eos_filename + '.md5sum'):
-                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the MD5 checksum
          elif child.attrib == {'label': image[4:]} : # special case for CVP as labels are in the format 2020.1.1 so we need to remove 'cvp-' to match
             #print (child.attrib)
             for grandchild in child.iter('file'):
                if grandchild.text == (eos_filename):
                   path = grandchild.attrib['path']
                elif grandchild.text == (eos_filename + '.md5'):
-                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the MD5 checksum
 
 
       if path == "": # this means we haven't found the image so we exit the script at this point
@@ -267,18 +270,22 @@ for image in file_list:
       jsonpost = {'sessionCode': session_code, 'filePath': path}
       result = requests.post(download_link_url, data=json.dumps(jsonpost))
       download_link = (result.json()["data"]["url"])
-      if img != 'source':
-         jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
-         sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
-         sha512_download_link = (sha512_result.json()["data"]["url"])
+      #if img != 'source':
+         
+
 
       print(eos_filename + " is currently downloading....")
       # download the file to the current folder
       download_file (download_link, eos_filename)
 
       if img != 'source':
+         jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
+         sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
+         sha512_download_link = (sha512_result.json()["data"]["url"])
          if "TerminAttr" in image:
             download_file (sha512_download_link, eos_filename + '.md5sum')
+         if "cvp" in image:
+            download_file (sha512_download_link, eos_filename + '.md5')
          else:
             download_file (sha512_download_link, eos_filename + '.sha512sum')
          for line in urllib.request.urlopen(sha512_download_link):
@@ -291,14 +298,20 @@ for image in file_list:
             else:
                print ("\nMD5 checksum incorrect, downloaded file must be corrupt.")
                sys.exit()
+         elif "cvp" in image:
+            download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for CVP images
+            if (download_file_chksum == sha512_file.decode("utf-8").rstrip('\n')):
+               print ("\nMD5 checksum correct")
+            else:
+               print ("\nMD5 checksum incorrect, downloaded file must be corrupt.")
+               sys.exit()
          else:
             download_file_chksum = os.popen("openssl sha512 " + eos_filename).read()  # calculate the SHA512 checksum of the downloaded file
-
-         if (download_file_chksum.split(" ")[1].rstrip('\n')) == (sha512_file.decode("utf-8").split(" ")[0]):
-            print ("\nSHA512 checksum correct")
-         else:
-            print ("\nSHA512 checksum incorrect, downloaded file must be corrupt.")
-            sys.exit()
+            if (download_file_chksum.split(" ")[1].rstrip('\n')) == (sha512_file.decode("utf-8").split(" ")[0]):
+               print ("\nSHA512 checksum correct")
+            else:
+               print ("\nSHA512 checksum incorrect, downloaded file must be corrupt.")
+               sys.exit()
 
 if cvp != '': # if the CVP IP address has been specified when running the script, the user must want to upload the image to CVP
    if (rootpw == '') or (cvp_user == '') or (cvp_passwd == ''):
