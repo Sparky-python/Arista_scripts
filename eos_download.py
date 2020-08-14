@@ -66,7 +66,7 @@ INSTALLATION
 3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/eos_download.py
 4. Run the script using the following: .\eos_download.py --api {API TOKEN} --ver 
 {EOS VERSION|TERMINATTR VERSION|CVP VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source|ova|kvm|rpm|upgrade} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
-{GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve]
+{GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve] 
 
 
 """
