@@ -179,6 +179,12 @@ creds = (base64.b64encode(api.encode())).decode("utf-8")
 session_code_url = "https://www.arista.com/custom_data/api/cvp/getSessionCode/"
 jsonpost = {'accessToken': creds}
 result = requests.post(session_code_url, data=json.dumps(jsonpost))
+if result.json()["status"]["message"] == 'Access token expired':
+   print("The API token has expired. Please visit arista.com, click on your profile and select Regenerate Token then re-run the script with the new token.")
+   sys.exit()
+elif result.json()["status"]["message"] == 'Invalid access token':
+   print("The API token is incorrect. Please visit arista.com, click on your profile and check the Access Token. Then re-run the script with the correct token.")
+   sys.exit()
 session_code = (result.json()["data"]["session_code"])
 
 # then get the current folder tree, similar to what you see on the download page in XML format
