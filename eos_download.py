@@ -149,7 +149,7 @@ parser.add_argument('--api', required=True,
 parser.add_argument('--ver', required=True, action='append',
                     default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F, cvp-2020.1.1 for CVP and TerminAttr-1.7.4 for TerminAttr files')
 parser.add_argument('--img', required=False,
-                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64 or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag.')
+                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64, RN (to download the Release Notes) or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag.')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -235,6 +235,8 @@ for image in file_list:
          eos_filename = "EOS-2GB-" + image + ".swi"
       elif img == '64':
          eos_filename = "EOS64-" + image + ".swi"
+      elif img == 'RN':
+         eos_filename = "RN-" + image + "-"
       elif img == 'source':
          eos_filename = "EOS-" + image + "-source.tar"
       else:
@@ -252,6 +254,9 @@ for image in file_list:
                   path = grandchild.attrib['path'] # corresponds to the download path
                elif grandchild.text == (eos_filename + '.sha512sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
+               elif ('RN' in grandchild.text) and (eos_filename in grandchild.text):
+                  eos_filename = grandchild.text
+                  path = grandchild.attrib['path'] # corresponds to the download path
          elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  : # special case for TerminAttr as some releases have -1 in the folder name others don't but the filename always has the -1
             #print (child.attrib)
             for grandchild in child.iter('file'):
@@ -275,16 +280,14 @@ for image in file_list:
       download_link_url = "https://www.arista.com/custom_data/api/cvp/getDownloadLink/"
       jsonpost = {'sessionCode': session_code, 'filePath': path}
       result = requests.post(download_link_url, data=json.dumps(jsonpost))
-      download_link = (result.json()["data"]["url"])
-      #if img != 'source':
-         
+      download_link = (result.json()["data"]["url"])         
 
 
       print(eos_filename + " is currently downloading....")
       # download the file to the current folder
       download_file (download_link, eos_filename)
 
-      if img != 'source':
+      if (img != 'source') and (img != 'RN'):
          jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
          sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
          sha512_download_link = (sha512_result.json()["data"]["url"])
