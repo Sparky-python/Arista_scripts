@@ -323,6 +323,7 @@ if cvp != '': # if the CVP IP address has been specified when running the script
    if (rootpw == '') or (cvp_user == '') or (cvp_passwd == ''):
       print ("\nTo upload images to CVP, the root password, GUI username and password all need to be specified. Please re-run the script with the --rootpw, --cvp_user and --cvp_passwd options")
       sys.exit()
+   terminattr_filename = ""
    t = paramiko.Transport((cvp, 22))
    t.connect(username="root", password=rootpw)
    sftp = paramiko.SFTPClient.from_transport(t)
@@ -355,7 +356,7 @@ if cvp != '': # if the CVP IP address has been specified when running the script
 
    print ("\nFile copied to CVP server\nNow importing " + eos_filename + " into HDBase.")
 
-   if eos_filename and terminattr_filename:
+   if (eos_filename != '') and (terminattr_filename != ''):
       stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --swix' + terminattr_filename + ' --bundle EOS-' + eos_bundle + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
    else:
       stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --bundle EOS-' + eos_bundle + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
