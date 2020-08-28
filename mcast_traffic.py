@@ -3,11 +3,26 @@
 import time,sys,os,subprocess
 import re
 import socket
+import argparse
+import warnings
 
-interface = raw_input("Please enter the interface you'd like to send multicast traffic out of in the format et5 for example: ")
-mcast_group = raw_input("Please enter the multicast group you'd like to send traffic to: ")
-number = raw_input("Please enter the number of packets per second you'd like to send: ")
-size = raw_input("Please enter the packet size you'd like to use: ")
+# use argparse to take the user input, can fill in default values here if the user wishes
+warnings.filterwarnings("ignore")
+parser = argparse.ArgumentParser()
+parser.add_argument('--interface', required=True,
+                    default='', help='Interface to send traffic out of')
+parser.add_argument('--mcast_group', required=True,
+                    default=[], help='Multicast group to send traffic to')
+parser.add_argument('--number', required=False,
+                    default='100', help='Number of packets per second to send.')
+parser.add_argument('--size', required=False,
+                    default='500', help='Size of packets in bytes')
+
+args = parser.parse_args()
+interface = args.interface
+mcast_group = args.mcast_group
+number = args.number
+size = args.size
 
 output = subprocess.Popen(['ifconfig', interface], stdout = subprocess.PIPE, stderr=subprocess.STDOUT)
 stdout,stderr = output.communicate()
