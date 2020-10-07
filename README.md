@@ -54,3 +54,12 @@ Run the script using the following:
 
 This example will try to connect to all IP's from 192.168.1.1 to 192.168.1.20
 
+## mcast_traffic.py
+
+Script to generate multicast traffic from an EOS switch. Simply copy the script to flash:.
+
+Run the script using the following:
+.\mcast_traffic.py --interface et1 --mcast_group 239.1.1.1 --number 1000 --size 1500
+
+This example will send traffic out of Ethernet1 (note the format of the interface is based on the linux interface naming) to 239.1.1.1 at a rate of 1000 pps and each packet will be 1500 bytes in size.
+
