@@ -63,3 +63,19 @@ Run the script using the following:
 
 This example will send traffic out of Ethernet1 (note the format of the interface is based on the linux interface naming) to 239.1.1.1 at a rate of 1000 pps and each packet will be 1500 bytes in size.
 
+## CVP_configlet_builder_encrypt_passwords.py
+
+A Python script for use within a CVP configlet builder which reads in a static configlet
+which contains local usernames and the enable password. This static configlet can be edited 
+to update the unencrypted passwords using the config "username <USER> secret <PASSWORD>" 
+syntax. Then run the builder configlet which will update the static configlet with the 
+SHA512 encrypted versions of the passwords. Therefore the static configlet doesn't contain
+clear text passwords and CVP doesn't generate config compliance issues.
+
+INSTALLATION
+1. create a configlet builder in CVP
+2. paste this script in to the Main Script box, no Form is required.
+3. edit the configlet_name variable which contain the name of the static configlet containing
+the local usernames and passwords 
+4. click on Generate
+5. then execute the Tasks which are created assuming the configlet is already applied to some devices
