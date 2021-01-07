@@ -7,7 +7,7 @@ Just a bunch of useful python scripts to manage and configure Arista switches. N
 Uses pyeapi so you'll need to install that and setup a .eapi.conf file in your home directory, an example is in the repository here. Simply this script takes a subnet (e.g. 192.168.1.0/24) as an input and then uses that to address all the point to point links in the topology that it discovers using LLDP. Each link is given a /30 from the range.
 
 Run the script using the following:
-.\point-to-point-addressing.py <IP-SUBNET>
+.\point-to-point-addressing.py {IP-SUBNET}
 
 ## bugalertUpdate.py
 
