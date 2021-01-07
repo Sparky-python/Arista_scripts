@@ -43,25 +43,21 @@ Run the script using the following:
 
 ## run_command.py
 
-Script to apply commands to all switches defined in eapi.conf. Can simply apply a single command using --conf, used to create Loopback interfaces with incrementing IP address using --interface and --addr or can read in a file containing a chunk of config to be applied to all devices using --config_file.
+Script to apply commands to all switches defined in eapi.conf. Can simply apply a single command, used to create Loopback interfaces on each switch with incrementing IP addresses or can read in a file containing a chunk of config to be applied to all devices. Can also apply config to all Leaf switches (assumes your hostnames contain ‘leaf), all Spine switches (assumes your hostnames contain ‘spine’) or just all switches. When using the config file option, it can also remove all config in the file by simply adding ‘no’ to each command, be aware this is a fairly ‘dumb’ removal of config so it’s not going to work for something like removing a BGP neighbour as it’ll put no in front of ‘router bgp’ so use carefully.
+
+Run the script using the following: ./run_command.py [–conf {CONFIG LINE}] [--interface {INTERFACE} –addr {ADDRESS RANGE}] [--config_file {FILENAME} [--remove]] [--device {‘Leaf’|’Spine’}]
 
 ## create_eapi_conf.py
 
 Script to create an eapi.conf file for use with pyeapi given an existing network configured within a block of management IP addresses (script will skip over any IP's it can't connect to). Script will get the hostname from each switch and build the eapi.conf file. Needs the switch username and password input. Assumes https as the transport for each switch.
 
-Run the script using the following:
-.\create_eapi_conf.py --addr 192.168.1.1 --num 20 --user cvpadmin --passwd arista123
-
-This example will try to connect to all IP's from 192.168.1.1 to 192.168.1.20
+Run the script using the following: .\create_eapi_conf.py --addr {START IP ADDRESS} –num {NUMBER OF ADDRESSES TO TRY} --user {USERNAME} --passwd {PASSWORD}
 
 ## mcast_traffic.py
 
-Script to generate multicast traffic from an EOS switch. Simply copy the script to flash:.
+Script to generate multicast traffic from an EOS switch. Simply copy the script to flash:. The INTERFACE option needs to be in the linux form so Et1 for Ethernet1 for example.
 
-Run the script using the following:
-.\mcast_traffic.py --interface et1 --mcast_group 239.1.1.1 --number 1000 --size 1500
-
-This example will send traffic out of Ethernet1 (note the format of the interface is based on the linux interface naming) to 239.1.1.1 at a rate of 1000 pps and each packet will be 1500 bytes in size.
+Run the script using the following: .\mcast_traffic.py --interface {INTERFACE} --mcast_group {MULTICAST IP} --number {NUMBER OF PACKETS PER SECOND} --size {PACKET SIZE}
 
 ## CVP_configlet_builder_encrypt_passwords.py
 
