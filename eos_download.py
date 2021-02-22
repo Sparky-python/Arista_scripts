@@ -149,7 +149,7 @@ parser.add_argument('--api', required=True,
 parser.add_argument('--ver', required=True, action='append',
                     default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F, cvp-2020.1.1 for CVP and TerminAttr-1.7.4 for TerminAttr files')
 parser.add_argument('--img', required=False,
-                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64, RN (to download the Release Notes) or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag.')
+                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64, RN (to download the Release Notes) or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag. For CVP Applications, specify servicenow, remedy, ipam or cloudbuilder')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -209,6 +209,10 @@ for image in file_list:
    elif "TerminAttr" in image: # if the user wants a TerminAttr image
       z = 3 # corresponds to "CloudVision" top level folder
       eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
+   elif "ipam" in img: # if the user wants a CVP IPAM image
+      z = 3 # corresponds to "CloudVision" top level folder
+      eos_filename = "cvp-ipam-backend-v" + image + "-1.x86_64.rpm" # filename should be something like cvp-ipam-backend-v1.2.1-1.x86_64.rpm
+      ipam_filename = "ipam-ui-v" + image + "-1.noarch.rpm" # 2 files are needed for CVP IPAM
    elif "cvp" in image: # if the user wants a CVP image
       z = 3 # corresponds to "CloudVision" top level folder
       if img == 'ova':
@@ -271,7 +275,17 @@ for image in file_list:
                   path = grandchild.attrib['path']
                elif grandchild.text == (eos_filename + '.md5'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the MD5 checksum
-
+         elif child.attrib == {'label': "CVP IPAM Application"} and img == "ipam":
+            for grandchild in child.iter('file'):
+               #print(grandchild.text)
+               if grandchild.text == (eos_filename):
+                  path = grandchild.attrib['path']
+               elif grandchild.text == (ipam_filename):
+                  path2 = grandchild.attrib['path']
+               elif grandchild.text == (eos_filename + '.sha512sum'):
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
+               elif grandchild.text == (ipam_filename + '.sha512sum'):
+                  sha512_path2 = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
 
       if path == "": # this means we haven't found the image so we exit the script at this point
          print("\nFile " + eos_filename +" does not exist.")
@@ -286,6 +300,12 @@ for image in file_list:
       print(eos_filename + " is currently downloading....")
       # download the file to the current folder
       download_file (download_link, eos_filename)
+      if img == "ipam":  # for CVP IPAM there's 2 files to download so this grabs the 2nd file
+         jsonpost = {'sessionCode': session_code, 'filePath': path2}
+         result = requests.post(download_link_url, data=json.dumps(jsonpost))
+         download_link = (result.json()["data"]["url"])
+         print(ipam_filename + " is currently downloading....")  
+         download_file(download_link, ipam_filename)
 
       if (img != 'source') and (img != 'RN'):
          jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
@@ -299,6 +319,14 @@ for image in file_list:
             download_file (sha512_download_link, eos_filename + '.sha512sum')
          for line in urllib.request.urlopen(sha512_download_link):
             sha512_file = line
+
+         if img == "ipam":
+            jsonpost = {'sessionCode': session_code, 'filePath': sha512_path2}
+            sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
+            sha512_download_link = (sha512_result.json()["data"]["url"])
+            download_file (sha512_download_link, ipam_filename + '.sha512sum')
+            for line in urllib.request.urlopen(sha512_download_link):
+               sha512_file2 = line
       
          if "TerminAttr" in image:
             download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for TerminAttr images
