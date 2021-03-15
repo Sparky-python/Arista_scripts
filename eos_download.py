@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2020, Arista Networks, Inc.
+# Copyright (c) 2021, Arista Networks, Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -44,16 +44,19 @@ it with. These can be hardcoded into the script by editing the 'default' values 
 parser lines of code or passed as commmand line options.
 
 The script can also simply be used as a quick way to download images from arista.com 
-without having to login to the website with SSO, browse through to find the right image 
-and download through a browser. For this use case only the API token, image version and 
-optional type of image option (for International, 64-bit, vEOS etc. images). CVP releases
-can also be downloaded by specifying the version of CVP with the --ver argument in the form
-cvp-2020.1.1 for example and then with the --img argument, whether the ova, kvm, rpm or 
-upgrade variant is required.
+without having to login to the website, browse through to find the right image and download 
+through a browser. For this use case only the API token, image version and optional type of 
+image option (for International, 64-bit, vEOS etc. images). CVP releases can also be 
+downloaded by specifying the version of CVP with the --ver argument in the form cvp-2020.1.1 
+for example and then with the --img argument, whether the ova, kvm, rpm or upgrade variant is 
+required. CVP applications like Remedy, IPAM and CloudBuilder can be downloaded with the --img 
+arguments remedy, ipam or cloudbuilder respectively.
 
 Finally this script can be installed on an Eve-NG server to download an image and then create
 the qcow2 image in a folder based on the image version for use in Eve topologies. Just add 
---eve to the command when run. Note vEOS-lab images are best to use for Eve-NG.
+--eve to the command when run. If ZTP for the vEOS-lab image is not required, the --disable_ztp
+option will mount the image and set ZTP to disabled. Note vEOS-lab images are best to use for 
+Eve-NG.
 
 If running the script on a non-shared environment, the user's API key could be hardcoded into
 the script to save having to use it on the command line. To do this, enter the API key as the
@@ -65,8 +68,8 @@ INSTALLATION
 2. pip3 install scp paramiko tqdm requests
 3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/eos_download.py
 4. Run the script using the following: .\eos_download.py --api {API TOKEN} --ver 
-{EOS VERSION|TERMINATTR VERSION|CVP VERSION} [--ver {TERMINATTR VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source|ova|kvm|rpm|upgrade} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
-{GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve] 
+{EOS VERSION|TERMINATTR VERSION|CVP VERSION} [--ver {EOS VERSION|TERMINATTR VERSION|CVP VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source|ova|kvm|rpm|upgrade|ipam|remedy|cloudbuilder} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
+{GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve --overwrite --disable_ztp] 
 
 
 """
@@ -149,7 +152,7 @@ parser.add_argument('--api', required=True,
 parser.add_argument('--ver', required=True, action='append',
                     default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F, cvp-2020.1.1 for CVP and TerminAttr-1.7.4 for TerminAttr files')
 parser.add_argument('--img', required=False,
-                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64, RN (to download the Release Notes) or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag. For CVP Applications, specify servicenow, remedy, ipam or cloudbuilder')
+                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64, RN (to download the Release Notes) or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag. For CVP Applications, specify remedy, ipam or cloudbuilder')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -160,6 +163,10 @@ parser.add_argument('--cvp_passwd', required=False,
                     default='', help='CVP WebUI Password')
 parser.add_argument('--eve', required=False, action='store_true',
                     help="Use this option if you're running this on Eve-NG to create a qcow2 image")
+parser.add_argument('--overwrite', required=False, action='store_true',
+                    help="Use this option if you would like to overwrite any previously downloaded files")
+parser.add_argument('--disable_ztp', required=False, action='store_true',
+                    help='Disable ZTP mode for vEOS-lab images running in Eve-NG')
 
 args = parser.parse_args()
 
@@ -171,6 +178,7 @@ rootpw = args.rootpw
 cvp_user = args.cvp_user
 cvp_passwd = args.cvp_passwd
 eve = args.eve
+overwrite = args.overwrite
 
 # the api key needs converting into base64 which outputs a byte value and then decoding to a string
 creds = (base64.b64encode(api.encode())).decode("utf-8")
@@ -210,11 +218,18 @@ for image in file_list:
       z = 3 # corresponds to "CloudVision" top level folder
       eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
    elif "ipam" in img: # if the user wants a CVP IPAM image
-      z = 3 # corresponds to "CloudVision" top level folder
+      z = 2 # corresponds to "CloudVision" top level folder
       eos_filename = "cvp-ipam-backend-v" + image + "-1.x86_64.rpm" # filename should be something like cvp-ipam-backend-v1.2.1-1.x86_64.rpm
       ipam_filename = "ipam-ui-v" + image + "-1.noarch.rpm" # 2 files are needed for CVP IPAM
+   elif "remedy" in img: # if the user wants a CVP Remedy image
+      z = 2 # corresponds to "CloudVision" top level folder
+      eos_filename = "remedy_cvp-" + image + "-1.noarch.rpm" # filename should be something like remedy_cvp-1.0.0-1.noarch.rpm
+   elif "cloudbuilder" in img: # if the user wants a CVP CloudBuilder image
+      z = 2 # corresponds to "CloudVision" top level folder
+      eos_filename = "cloud-builder-v" + image + "-1.x86_64.rpm" # filename should be something like cloud-builder-v2.4.0-1.x86_64.rpm
+      cb_filename = "cloud-builder-frontend-v" + image + "-1.noarch.rpm" # 2 files are needed for CVP CloudBuilder
    elif "cvp" in image: # if the user wants a CVP image
-      z = 3 # corresponds to "CloudVision" top level folder
+      z = 2 # corresponds to "CloudVision" top level folder
       if img == 'ova':
          eos_filename = image + ".ova"
       elif img == 'kvm':
@@ -246,7 +261,8 @@ for image in file_list:
       else:
          eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
 
-   if os.path.isfile(eos_filename): # check if the image exists in the current directory, if so no need to download again
+
+   if os.path.isfile(eos_filename) and not overwrite: # check if the image exists in the current directory, if so no need to download again
       print ("\nLocal copy of file already exists")
    else:
       for child in root[z].iter('dir'):
@@ -286,6 +302,25 @@ for image in file_list:
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
                elif grandchild.text == (ipam_filename + '.sha512sum'):
                   sha512_path2 = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
+         elif child.attrib == {'label': "Remedy-CVP"} and img == "remedy":
+            for grandchild in child.iter('file'):
+               #print(grandchild.text)
+               if grandchild.text == (eos_filename):
+                  path = grandchild.attrib['path']
+               elif grandchild.text == (eos_filename + '.sha512sum'):
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
+         elif child.attrib == {'label': "Cloud Builder"} and img == "cloudbuilder":
+            for grandchild in child.iter('file'):
+               #print(grandchild.text)
+               if grandchild.text == (eos_filename):
+                  path = grandchild.attrib['path']
+               elif grandchild.text == (cb_filename):
+                  path2 = grandchild.attrib['path']
+               elif grandchild.text == (eos_filename + '.sha512sum'):
+                  sha512_path = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
+               elif grandchild.text == (cb_filename + '.sha512sum'):
+                  sha512_path2 = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
+
 
       if path == "": # this means we haven't found the image so we exit the script at this point
          print("\nFile " + eos_filename +" does not exist.")
@@ -306,6 +341,13 @@ for image in file_list:
          download_link = (result.json()["data"]["url"])
          print(ipam_filename + " is currently downloading....")  
          download_file(download_link, ipam_filename)
+      elif img == "cloudbuilder":  # for CVP CloudBuilder there's 2 files to download so this grabs the 2nd file
+         jsonpost = {'sessionCode': session_code, 'filePath': path2}
+         result = requests.post(download_link_url, data=json.dumps(jsonpost))
+         download_link = (result.json()["data"]["url"])
+         print(cb_filename + " is currently downloading....")  
+         download_file(download_link, cb_filename)
+
 
       if (img != 'source') and (img != 'RN'):
          jsonpost = {'sessionCode': session_code, 'filePath': sha512_path}
@@ -328,6 +370,14 @@ for image in file_list:
             for line in urllib.request.urlopen(sha512_download_link):
                sha512_file2 = line
       
+         if img == "cloudbuilder":
+            jsonpost = {'sessionCode': session_code, 'filePath': sha512_path2}
+            sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
+            sha512_download_link = (sha512_result.json()["data"]["url"])
+            download_file (sha512_download_link, cb_filename + '.sha512sum')
+            for line in urllib.request.urlopen(sha512_download_link):
+               sha512_file2 = line
+
          if "TerminAttr" in image:
             download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for TerminAttr images
             if (download_file_chksum == (sha512_file.decode("utf-8").split(" ")[0])):
@@ -420,3 +470,16 @@ if eve:
    os.system("/opt/unetlab/wrappers/unl_wrapper -a fixpermissions")
    os.system("rm "+ eos_filename)
    print ("Image successfully created")
+
+   eve_path = "/opt/unetlab/addons/qemu/" + eos_folder_name.rstrip(".vmdk")
+   if ztp:
+      print("Mounting volume to disable ZTP")
+      os.system("rm -rf " + eve_path + "/raw")
+      os.system("mkdir -p " + eve_path + "/raw")
+      os.system("guestmount -a {}/hda.qcow2 -m /dev/sda2 {}/raw/".format(eve_path,eve_path))
+      with open(eve_path + '/raw/zerotouch-config', 'w') as zfile:
+            zfile.write('DISABLE=True')
+      print("Unmounting volume at: " + str(eve_path))
+      os.system("guestunmount " + eve_path + '/raw/')
+      os.system('rm -rf ' + eve_path + '/raw')
+      print("Volume has been successfully unmounted at: " + str(eve_path))
