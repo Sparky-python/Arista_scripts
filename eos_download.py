@@ -179,6 +179,7 @@ cvp_user = args.cvp_user
 cvp_passwd = args.cvp_passwd
 eve = args.eve
 overwrite = args.overwrite
+ztp = args.disable_ztp
 
 # the api key needs converting into base64 which outputs a byte value and then decoding to a string
 creds = (base64.b64encode(api.encode())).decode("utf-8")
