@@ -30,6 +30,8 @@ Finally this script can be installed on an Eve-NG server to download an image an
 
 If running the script on a non-shared environment, the user's API key could be hardcoded into the script to save having to use it on the command line. To do this, enter the API key as thedefault value in the argparse section and change the required value to False.
 
+Run the script using the following: .\eos_download.py --api {API TOKEN} --ver {EOS VERSION|TERMINATTR VERSION|CVP VERSION} [--ver {EOS VERSION|TERMINATTR VERSION|CVP VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source|ova|kvm|rpm|upgrade|ipam|remedy|cloudbuilder} --cvp {CVP IP ADDRESS}--rootpw {ROOT PASSWORD} --cvp_user {GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve --overwrite --disable_ztp] 
+
 Requires tqdm, paramiko, requests and scp modules installing
 
 ## dns_entries.py
