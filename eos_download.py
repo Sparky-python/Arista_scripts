@@ -465,16 +465,17 @@ if eve:
       eos_folder_name+=str(y.lower())
       eos_folder_name+="-"
    eos_folder_name+=str(x[-1])
+   eos_folder_name = eos_folder_name.rstrip(".vmdk")
    if ztp:
       eos_folder_name+="-noztp"
 
-   os.system("mkdir -p /opt/unetlab/addons/qemu/" + eos_folder_name.rstrip(".vmdk"))
-   os.system("mv hda.qcow2 /opt/unetlab/addons/qemu/" + eos_folder_name.rstrip(".vmdk"))
+   os.system("mkdir -p /opt/unetlab/addons/qemu/" + eos_folder_name.rstrip)
+   os.system("mv hda.qcow2 /opt/unetlab/addons/qemu/" + eos_folder_name.rstrip)
    os.system("/opt/unetlab/wrappers/unl_wrapper -a fixpermissions")
    os.system("rm "+ eos_filename)
    print ("Image successfully created")
 
-   eve_path = "/opt/unetlab/addons/qemu/" + eos_folder_name.rstrip(".vmdk")
+   eve_path = "/opt/unetlab/addons/qemu/" + eos_folder_name
    if ztp:
       print("Mounting volume to disable ZTP")
       os.system("rm -rf " + eve_path + "/raw")
