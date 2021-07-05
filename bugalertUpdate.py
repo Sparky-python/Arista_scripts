@@ -73,10 +73,32 @@ from datetime import datetime
 def remove_last_line_from_string(s):
     return s[:s.rfind('\n')]
 
+def is_eos_after(eos_ver, list_of_version_introduced):
+   is_after_list = []
+
+   eos_ver_list = eos_ver.split(".")
+   for y in range(len(list_of_version_introduced)):
+      list_of_version_introduced_list = list_of_version_introduced[y].split(".")
+      for x in range(len(eos_ver_list)):
+         if int(eos_ver_list[x]) < int(list_of_version_introduced_list[x]):
+            is_after_list.append(False)
+            break
+         elif int(eos_ver_list[x]) > int(list_of_version_introduced_list[x]):
+            is_after_list.append(True)
+            break
+         elif (int(eos_ver_list[x]) == int(list_of_version_introduced_list[x])) and (x == len(eos_ver_list) - 1):
+            is_after_list.append(True)
+            break
+
+   is_after = any(is_after_list)
+   return is_after
+
+
+
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=False,
-                    default='2beb105836a4c44b942eed4666d0cd48', help='arista.com user API key')
+                    default='', help='arista.com user API key')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -180,9 +202,14 @@ else:
       scp = SCPClient(ssh.get_transport())
       scp.put('AlertBase-CVP.json')
       stdin, stdout, stderr = ssh.exec_command('chmod 644 AlertBase-CVP.json')
-      stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/aeris/bugalerts/AlertBase.json')
+      if (cvp_main_version == "2020") or (cvp_main_version == "2021"):
+         stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/bugalerts/AlertBase.json')
+      elif (cvp_main_version == "2018") or (cvp_main_version == "2019"): 
+         stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/aeris/bugalerts/AlertBase.json')
+      else:
+         log.write('\n This version of CVP is not supported by this script')
+         sys.exit()
       stdin, stdout, stderr = ssh.exec_command('su cvp')
       stdin, stdout, stderr = ssh.exec_command('cvpi stop bugalerts-update && cvp start bugalerts-update')
    
 log.close()
-
