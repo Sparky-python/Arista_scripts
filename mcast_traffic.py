@@ -17,12 +17,15 @@ parser.add_argument('--number', required=False,
                     default='100', help='Number of packets per second to send.')
 parser.add_argument('--size', required=False,
                     default='500', help='Size of packets in bytes')
+parser.add_argument('--ttl', required=False,
+                    default='64', help='TTL of the packets to send')
 
 args = parser.parse_args()
 interface = args.interface
 mcast_group = args.mcast_group
 number = args.number
 size = args.size
+ttl = args.ttl
 
 output = subprocess.Popen(['ifconfig', interface], stdout = subprocess.PIPE, stderr=subprocess.STDOUT)
 stdout,stderr = output.communicate()
@@ -63,7 +66,7 @@ mcast_mac = convert_multicast_ip_to_mac(mcast_group)
 
 while True:
    try:
-      os.system("sudo ethxmit -S " + src_mac + " -D " + mcast_mac + " --ip-src=" + src_ip + " --ip-dst=" + mcast_group + " -n " + number + " -s " + size + " " + interface)
+      os.system("sudo ethxmit -S " + src_mac + " -D " + mcast_mac + " --ip-src=" + src_ip + " --ip-dst=" + mcast_group + " -n " + number + " -s " + size + " --ttl " + ttl + " " + interface)
       time.sleep(1)
    except KeyboardInterrupt:
       raise
