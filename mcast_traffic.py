@@ -19,6 +19,9 @@ parser.add_argument('--size', required=False,
                     default='500', help='Size of packets in bytes')
 parser.add_argument('--ttl', required=False,
                     default='64', help='TTL of the packets to send')
+parser.add_argument('--incorrect_mac', required=False, action='store_true',
+                    help='Option to set an incorrect destination MAC addresss')
+
 
 args = parser.parse_args()
 interface = args.interface
@@ -26,6 +29,7 @@ mcast_group = args.mcast_group
 number = args.number
 size = args.size
 ttl = args.ttl
+incorrect_mac = args.incorrect_mac
 
 output = subprocess.Popen(['ifconfig', interface], stdout = subprocess.PIPE, stderr=subprocess.STDOUT)
 stdout,stderr = output.communicate()
@@ -36,7 +40,7 @@ src_mac = stdout[ether_pos+6:ether_pos+23]
 src_ip = stdout[ip_pos+5:netmask_pos-2]
 
 
-def convert_multicast_ip_to_mac(ip_address):
+def convert_multicast_ip_to_mac(ip_address, incorrect_mac):
     """Convert the Multicast IP to it's equivalent Multicast MAC.
     Source info: https://technet.microsoft.com/en-us/library/cc957928.aspx
     """
@@ -50,7 +54,13 @@ def convert_multicast_ip_to_mac(ip_address):
     # The low order 23 bits of the IP multicast address are mapped directly to the low order
     # 23 bits in the MAC-layer multicast address
     lower_order_23 = ip_bit_string[-23:]
-
+    if incorrect_mac:
+      if lower_order_23[0] == '1':
+        new_lower_order_23 = '0' + lower_order_23[1:]
+      elif lower_order_23[0] == '0':
+        new_lower_order_23 = '1' + lower_order_23[1:]
+      lower_order_23 = new_lower_order_23
+          
     # The high order 25 bits of the 48-bit MAC address are fixed
     high_order_25 = '0000000100000000010111100'
 
@@ -62,7 +72,8 @@ def convert_multicast_ip_to_mac(ip_address):
     return mac_string.upper()
 
 
-mcast_mac = convert_multicast_ip_to_mac(mcast_group)
+
+mcast_mac = convert_multicast_ip_to_mac(mcast_group, incorrect_mac)
 
 while True:
    try:
