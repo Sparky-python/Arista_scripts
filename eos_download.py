@@ -307,7 +307,7 @@ root = ET.fromstring(folder_tree)
 path = ""
 if file_list[0] == "latest":
    file_list[0] = get_latest_version(root)
-   print (file_list)
+
 
 # for each image the user wishes to download
 for image in file_list:
@@ -318,7 +318,7 @@ for image in file_list:
       print ("\nLocal copy of file already exists")
    else:
       for child in root.iter('dir'):
-         print(child.attrib)
+         #print(child.attrib)
          if child.attrib == {'label': "EOS-" + image}:
             for grandchild in child.iter('file'):
                #print(grandchild.text)
@@ -345,7 +345,7 @@ for image in file_list:
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the MD5 checksum
          elif child.attrib == {'label': "CVP IPAM Application"} and img == "ipam":
             for grandchild in child.iter('file'):
-               print(grandchild.text)
+               #print(grandchild.text)
                if grandchild.text == (filename_list[0]):
                   path = grandchild.attrib['path']
                elif grandchild.text == (filename_list[1]):
