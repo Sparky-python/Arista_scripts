@@ -68,7 +68,7 @@ INSTALLATION
 2. pip3 install scp paramiko tqdm requests
 3. wget https://github.com/Sparky-python/Arista_scripts/blob/master/eos_download.py
 4. Run the script using the following: .\eos_download.py --api {API TOKEN} --ver 
-{EOS VERSION|TERMINATTR VERSION|CVP VERSION} [--ver {EOS VERSION|TERMINATTR VERSION|CVP VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS64-lab|cEOS|cEOS64|source|ova|kvm|rpm|upgrade|ipam|remedy|cloudbuilder} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
+{EOS VERSION|TERMINATTR VERSION|CVP VERSION} [--ver {EOS VERSION|TERMINATTR VERSION|CVP VERSION}] [--img {INT|64|2GB|2GB-INT|vEOS|vEOS-lab|vEOS-lab-swi|vEOS64-lab|cEOS|cEOS64|source|ova|kvm|rpm|upgrade|ipam|remedy|cloudbuilder} --cvp {CVP IP ADDRESS} --rootpw {ROOT PASSWORD} --cvp_user 
 {GUI CVP USERNAME} --cvp_passwd {GUI CVP PASSWORD} --eve --overwrite --disable_ztp] 
 
 
@@ -92,6 +92,7 @@ import os.path
 import re
 import time
 import hashlib
+
 
 # part of progress bar code
 def viewBar(a,b):
@@ -142,6 +143,102 @@ def md5(fname):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
+def get_file_list(image, img):
+   filename = []
+   if "TerminAttr" in image: # if the user wants a TerminAttr image
+      index = 'CloudVision' # corresponds to "CloudVision" top level folder
+      filename.append(image + "-1.swix") # filename should be something like TerminAttr-1.7.4-1.swix
+   elif "ipam" in img: # if the user wants a CVP IPAM image
+      index = 'CloudVision' # corresponds to "CloudVision" top level folder
+      filename.append("cvp-ipam-backend-v" + image + "-1.x86_64.rpm") # filename should be something like cvp-ipam-backend-v1.2.1-1.x86_64.rpm
+      filename.append("ipam-ui-v" + image + "-1.noarch.rpm") # 2 files are needed for CVP IPAM
+   elif "remedy" in img: # if the user wants a CVP Remedy image
+      index = 'CloudVision' # corresponds to "CloudVision" top level folder
+      filename.append("remedy_cvp-" + image + "-1.noarch.rpm") # filename should be something like remedy_cvp-1.0.0-1.noarch.rpm
+   elif "cloudbuilder" in img: # if the user wants a CVP CloudBuilder image
+      index = 'CloudVision' # corresponds to "CloudVision" top level folder
+      filename.append("cloud-builder-v" + image + "-1.x86_64.rpm") # filename should be something like cloud-builder-v2.4.0-1.x86_64.rpm
+      filename.append("cloud-builder-frontend-v" + image + "-1.noarch.rpm") # 2 files are needed for CVP CloudBuilder
+   elif "cvp" in image: # if the user wants a CVP image
+      index = 'CloudVision' # corresponds to "CloudVision" top level folder
+      if img == 'ova':
+         filename.append(image + ".ova")
+      elif img == 'kvm':
+         filename.append(image + "-kvm.tgz")
+      elif img == 'rpm':
+         filename.append(image[:4] + "rpm-installer-" + image[4:])
+      elif img == 'upgrade':
+         filename.append(image[:4] + "upgrade-" + image[4:] + ".tgz")
+   else: # otherwise it's a normal EOS image they're after
+      index = 'EOS' # corresponds to "EOS" top level folder
+      if img == 'cEOS':
+         if "EFT" in image:
+            filename.append("cEOS-lab-" + image[:-5] + "-32bit-" + image[-4:] + ".tar.xz")
+         else:
+            filename.append(eos_filename = "cEOS-lab-" + image + ".tar.xz")
+      elif img == 'cEOS64':
+         if "EFT" in image:
+            filename.append(eos_filename = "cEOS-lab-" + image[:-5] + "-64bit-" + image[-4:] + ".tar.xz")
+         else:
+            filename.append(eos_filename = "cEOS64-lab-" + image + ".tar.xz")
+      elif img == 'cEOS64':
+         filename.append("cEOS64-lab-" + image + ".tar.xz")
+      elif img == 'vEOS':
+         filename.append("vEOS-" + image + ".vmdk")
+      elif img == 'vEOS-lab':
+         filename.append("vEOS-lab-" + image + ".vmdk")
+      elif img == 'vEOS-lab-swi':
+         filename.append("vEOS-lab-" + image + ".swi")
+      elif img == 'vEOS64-lab':
+         filename.append("vEOS64-lab-" + image + ".vmdk")
+      elif img == '2GB':
+         filename.append("EOS-2GB-" + image + ".swi")
+      elif img == '64':
+         filename.append("EOS64-" + image + ".swi")
+      elif img == 'RN':
+         filename.append("RN-" + image + "-")
+      elif img == 'source':
+         filename.append("EOS-" + image + "-source.tar")
+      elif image == 'latest':
+         filename.append("latest")
+      else:
+         filename.append("EOS-" + image + ".swi") # filename should be something like EOS-4.22.1F.swi
+   return filename, index
+
+def get_latest_version(root):
+   for child in root.iter('dir'):
+      if "EOS-" in child.attrib['label']: 
+         return (child.attrib['label'][4:])
+
+# function to validate the user inputs
+def check_arguments(api, file_list, img, cvp, rootpw, cvp_user, cvp_passwd, eve, overwrite, ztp):
+   # check versions are valid
+   for image in file_list:
+      # first check EOS images
+      if "EFT" in image:
+         return True
+      elif img == ('INT') or img == ('64') or img == ('2GB') or img == ('2GB-INT') or img == ('vEOS') or img == ('vEOS-lab') or img == ('vEOS-lab-swi') or img == ('vEOS64-lab') or img == ('cEOS') or img == ('cEOS64') or img == ('RN') or img == ('source') or img == (''):
+         test = re.compile('^[0-9]\\.[0-9][0-9]\\.[0-9]\\.*[0-9]*[F|M]$')
+         eos_valid = test.match(image)
+         if image == 'latest':
+            eos_valid = True
+         if not eos_valid:
+            print ("Image version is not valid, please re-enter using the following format for EOS images: 4.26.0F or 4.21.7.1M")
+            return False
+         else:
+            return True
+      # next check CVP images
+      if img == ('ova') or img == ('kvm') or img == ('upgrade') or img == ('rpm'):
+         test = re.compile('^cvp-[0-9][0-9][0-9][0-9]\.[0-9]\.[0-9]$')
+         cvp_valid = test.match(image)
+         if not cvp_valid:
+            print ("Image version is not valid, please re-enter using the following format for CVP images: cvp-2021.1.0")
+            return False
+         else:
+            return True
+
+   
+
 
 # use argparse to take the user input, can fill in default values here if the user wishes
 # especially useful for the API key which won't change for a particular user
@@ -150,9 +247,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--api', required=True,
                     default='', help='arista.com user API key')
 parser.add_argument('--ver', required=True, action='append',
-                    default=[], help='EOS and swix iamges to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F, cvp-2020.1.1 for CVP and TerminAttr-1.7.4 for TerminAttr files')
+                    default=[], help='EOS and swix images to download, repeat --ver option for each file. EOS images should be in the form 4.22.1F, cvp-2020.1.1 for CVP and TerminAttr-1.7.4 for TerminAttr files. Or use "latest" to download the latest version of EOS.')
 parser.add_argument('--img', required=False,
-                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS64-lab, cEOS, cEOS64, RN (to download the Release Notes) or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag. For CVP Applications, specify remedy, ipam or cloudbuilder')
+                    default='', help='Type of EOS image required, INT, 64 (64-bit), 2GB (for 2GB flash platforms), 2GB-INT, vEOS, vEOS-lab, vEOS-lab-swi, vEOS64-lab, cEOS, cEOS64, RN (to download the Release Notes) or source (to download the source files). If none specified assumes normal EOS image for switches. For CVP, specify kvm, ova, rpm or upgrade for the img flag. For CVP Applications, specify remedy, ipam or cloudbuilder')
 parser.add_argument('--cvp', required=False,
                     default='', help='IP address of CVP server')
 parser.add_argument('--rootpw', required=False,
@@ -181,6 +278,9 @@ eve = args.eve
 overwrite = args.overwrite
 ztp = args.disable_ztp
 
+if not check_arguments(api, file_list, img, cvp, rootpw, cvp_user, cvp_passwd, eve, overwrite, ztp):
+   sys.exit()
+
 # the api key needs converting into base64 which outputs a byte value and then decoding to a string
 creds = (base64.b64encode(api.encode())).decode("utf-8")
 
@@ -200,132 +300,85 @@ session_code = (result.json()["data"]["session_code"])
 folder_tree_url = "https://www.arista.com/custom_data/api/cvp/getFolderTree/"
 jsonpost = {'sessionCode': session_code}
 result = requests.post(folder_tree_url, data=json.dumps(jsonpost))
-folder_tree = (result.json()["data"]["xml"])
 
+folder_tree = (result.json()["data"]["xml"])
 root = ET.fromstring(folder_tree)
+
 path = ""
+if file_list[0] == "latest":
+   file_list[0] = get_latest_version(root)
+   print (file_list)
 
 # for each image the user wishes to download
 for image in file_list:
-   if 'INT' in img: # if the user wants the international/federal variant
-      z = 1 # corresponds to "EOS International / Federal" top level folder
-      if img == 'INT':
-         eos_filename = "EOS-" + image + "-INT.swi" # filename should be something like EOS-4.22.1F-INT.swi
-         image = image.rstrip("-INT") # image should be 4.22.1F, need to remove the -INT
-      elif img == '2GB-INT':
-         eos_filename = "EOS-2GB-" + image + "-INT.swi" # filename should be something like EOS-4.22.1F-INT.swi
-         image = image.rstrip("-INT") # image should be 4.22.1F, need to remove the -INT
-   elif "TerminAttr" in image: # if the user wants a TerminAttr image
-      z = 3 # corresponds to "CloudVision" top level folder
-      eos_filename = image + "-1.swix" # filename should be something like TerminAttr-1.7.4-1.swix
-   elif "ipam" in img: # if the user wants a CVP IPAM image
-      z = 2 # corresponds to "CloudVision" top level folder
-      eos_filename = "cvp-ipam-backend-v" + image + "-1.x86_64.rpm" # filename should be something like cvp-ipam-backend-v1.2.1-1.x86_64.rpm
-      ipam_filename = "ipam-ui-v" + image + "-1.noarch.rpm" # 2 files are needed for CVP IPAM
-   elif "remedy" in img: # if the user wants a CVP Remedy image
-      z = 2 # corresponds to "CloudVision" top level folder
-      eos_filename = "remedy_cvp-" + image + "-1.noarch.rpm" # filename should be something like remedy_cvp-1.0.0-1.noarch.rpm
-   elif "cloudbuilder" in img: # if the user wants a CVP CloudBuilder image
-      z = 2 # corresponds to "CloudVision" top level folder
-      eos_filename = "cloud-builder-v" + image + "-1.x86_64.rpm" # filename should be something like cloud-builder-v2.4.0-1.x86_64.rpm
-      cb_filename = "cloud-builder-frontend-v" + image + "-1.noarch.rpm" # 2 files are needed for CVP CloudBuilder
-   elif "cvp" in image: # if the user wants a CVP image
-      z = 2 # corresponds to "CloudVision" top level folder
-      if img == 'ova':
-         eos_filename = image + ".ova"
-      elif img == 'kvm':
-         eos_filename = image + "-kvm.tgz"
-      elif img == 'rpm':
-         eos_filename = image[:4] + "rpm-installer-" + image[4:]
-      elif img == 'upgrade':
-         eos_filename = image[:4] + "upgrade-" + image[4:] + ".tgz"
-   else: # otherwise it's a normal EOS image they're after
-      z = 0 # corresponds to "EOS" top level folder
-      if img == 'cEOS':
-         eos_filename = "cEOS-lab-" + image + ".tar.xz"
-      elif img == 'cEOS64':
-         eos_filename = "cEOS64-lab-" + image + ".tar.xz"
-      elif img == 'vEOS':
-         eos_filename = "vEOS-" + image + ".vmdk"
-      elif img == 'vEOS-lab':
-         eos_filename = "vEOS-lab-" + image + ".vmdk"
-      elif img == 'vEOS64-lab':
-         eos_filename = "vEOS64-lab-" + image + ".vmdk"
-      elif img == '2GB':
-         eos_filename = "EOS-2GB-" + image + ".swi"
-      elif img == '64':
-         eos_filename = "EOS64-" + image + ".swi"
-      elif img == 'RN':
-         eos_filename = "RN-" + image + "-"
-      elif img == 'source':
-         eos_filename = "EOS-" + image + "-source.tar"
-      else:
-         eos_filename = "EOS-" + image + ".swi" # filename should be something like EOS-4.22.1F.swi
+   image_type = get_file_list(image, img)[1]
+   filename_list = get_file_list(image, img)[0]
 
-
-   if os.path.isfile(eos_filename) and not overwrite: # check if the image exists in the current directory, if so no need to download again
+   if os.path.isfile(filename_list[0]) and not overwrite: # check if the image exists in the current directory, if so no need to download again
       print ("\nLocal copy of file already exists")
    else:
-      for child in root[z].iter('dir'):
-         #print(child.attrib)
+      for child in root.iter('dir'):
+         print(child.attrib)
          if child.attrib == {'label': "EOS-" + image}:
             for grandchild in child.iter('file'):
                #print(grandchild.text)
-               if grandchild.text == (eos_filename):
+               if grandchild.text == (filename_list[0]):
                   path = grandchild.attrib['path'] # corresponds to the download path
-               elif grandchild.text == (eos_filename + '.sha512sum'):
+               elif grandchild.text == (filename_list[0] + '.sha512sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the sha512 checksum
-               elif ('RN' in grandchild.text) and (eos_filename in grandchild.text):
-                  eos_filename = grandchild.text
+               elif ('RN' in grandchild.text) and (filename_list[0] in grandchild.text):
+                  filename_list[0] = grandchild.text
                   path = grandchild.attrib['path'] # corresponds to the download path
          elif child.attrib == {'label': image} or child.attrib == {'label': image + "-1"}  : # special case for TerminAttr as some releases have -1 in the folder name others don't but the filename always has the -1
             #print (child.attrib)
             for grandchild in child.iter('file'):
-               if grandchild.text == (eos_filename):
+               if grandchild.text == (filename_list[0]):
                   path = grandchild.attrib['path']
-               elif grandchild.text == (eos_filename + '.md5sum'):
+               elif grandchild.text == (filename_list[0] + '.md5sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the MD5 checksum
          elif child.attrib == {'label': image[4:]} : # special case for CVP as labels are in the format 2020.1.1 so we need to remove 'cvp-' to match
             #print (child.attrib)
             for grandchild in child.iter('file'):
-               if grandchild.text == (eos_filename):
+               if grandchild.text == (filename_list[0]):
                   path = grandchild.attrib['path']
-               elif grandchild.text == (eos_filename + '.md5'):
+               elif grandchild.text == (filename_list[0] + '.md5'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the MD5 checksum
          elif child.attrib == {'label': "CVP IPAM Application"} and img == "ipam":
             for grandchild in child.iter('file'):
-               #print(grandchild.text)
-               if grandchild.text == (eos_filename):
+               print(grandchild.text)
+               if grandchild.text == (filename_list[0]):
                   path = grandchild.attrib['path']
-               elif grandchild.text == (ipam_filename):
+               elif grandchild.text == (filename_list[1]):
                   path2 = grandchild.attrib['path']
-               elif grandchild.text == (eos_filename + '.sha512sum'):
+               elif grandchild.text == (filename_list[0] + '.sha512sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
-               elif grandchild.text == (ipam_filename + '.sha512sum'):
+               elif grandchild.text == (filename_list[1] + '.sha512sum'):
                   sha512_path2 = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
          elif child.attrib == {'label': "Remedy-CVP"} and img == "remedy":
             for grandchild in child.iter('file'):
                #print(grandchild.text)
-               if grandchild.text == (eos_filename):
+               if grandchild.text == (filename_list[0]):
                   path = grandchild.attrib['path']
-               elif grandchild.text == (eos_filename + '.sha512sum'):
+               elif grandchild.text == (filename_list[0] + '.sha512sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
          elif child.attrib == {'label': "Cloud Builder"} and img == "cloudbuilder":
             for grandchild in child.iter('file'):
                #print(grandchild.text)
-               if grandchild.text == (eos_filename):
+               if grandchild.text == (filename_list[0]):
                   path = grandchild.attrib['path']
-               elif grandchild.text == (cb_filename):
+               elif grandchild.text == (filename_list[1]):
                   path2 = grandchild.attrib['path']
-               elif grandchild.text == (eos_filename + '.sha512sum'):
+               elif grandchild.text == (filename_list[0] + '.sha512sum'):
                   sha512_path = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
-               elif grandchild.text == (cb_filename + '.sha512sum'):
+               elif grandchild.text == (filename_list[1] + '.sha512sum'):
                   sha512_path2 = grandchild.attrib['path'] # corresponds to the download path of the SHA512 checksum
-
 
       if path == "": # this means we haven't found the image so we exit the script at this point
          print("\nFile " + eos_filename +" does not exist.")
          sys.exit()
+      if os.path.isfile(filename_list[0]) and not overwrite: # check if the image exists in the current directory, if so no need to download again
+         print ("\nLocal copy of file already exists")
+
       # the 3rd part of downloading a file is to use the path and session code to get the actual direct download link URL
       download_link_url = "https://www.arista.com/custom_data/api/cvp/getDownloadLink/"
       jsonpost = {'sessionCode': session_code, 'filePath': path}
@@ -333,21 +386,21 @@ for image in file_list:
       download_link = (result.json()["data"]["url"])         
 
 
-      print(eos_filename + " is currently downloading....")
+      print(filename_list[0] + " is currently downloading....")
       # download the file to the current folder
-      download_file (download_link, eos_filename)
+      download_file (download_link, filename_list[0])
       if img == "ipam":  # for CVP IPAM there's 2 files to download so this grabs the 2nd file
          jsonpost = {'sessionCode': session_code, 'filePath': path2}
          result = requests.post(download_link_url, data=json.dumps(jsonpost))
          download_link = (result.json()["data"]["url"])
-         print(ipam_filename + " is currently downloading....")  
-         download_file(download_link, ipam_filename)
+         print(filename_list[1] + " is currently downloading....")  
+         download_file(download_link, filename_list[1])
       elif img == "cloudbuilder":  # for CVP CloudBuilder there's 2 files to download so this grabs the 2nd file
          jsonpost = {'sessionCode': session_code, 'filePath': path2}
          result = requests.post(download_link_url, data=json.dumps(jsonpost))
          download_link = (result.json()["data"]["url"])
-         print(cb_filename + " is currently downloading....")  
-         download_file(download_link, cb_filename)
+         print(filename_list[1] + " is currently downloading....")  
+         download_file(download_link, filename_list[1])
 
 
       if (img != 'source') and (img != 'RN'):
@@ -355,11 +408,11 @@ for image in file_list:
          sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
          sha512_download_link = (sha512_result.json()["data"]["url"])
          if "TerminAttr" in image:
-            download_file (sha512_download_link, eos_filename + '.md5sum')
+            download_file (sha512_download_link, filename_list[0] + '.md5sum')
          if "cvp" in image:
-            download_file (sha512_download_link, eos_filename + '.md5')
+            download_file (sha512_download_link, filename_list[0] + '.md5')
          else:
-            download_file (sha512_download_link, eos_filename + '.sha512sum')
+            download_file (sha512_download_link, filename_list[0] + '.sha512sum')
          for line in urllib.request.urlopen(sha512_download_link):
             sha512_file = line
 
@@ -367,7 +420,7 @@ for image in file_list:
             jsonpost = {'sessionCode': session_code, 'filePath': sha512_path2}
             sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
             sha512_download_link = (sha512_result.json()["data"]["url"])
-            download_file (sha512_download_link, ipam_filename + '.sha512sum')
+            download_file (sha512_download_link, filename_list[1] + '.sha512sum')
             for line in urllib.request.urlopen(sha512_download_link):
                sha512_file2 = line
       
@@ -375,26 +428,26 @@ for image in file_list:
             jsonpost = {'sessionCode': session_code, 'filePath': sha512_path2}
             sha512_result = requests.post(download_link_url, data=json.dumps(jsonpost))
             sha512_download_link = (sha512_result.json()["data"]["url"])
-            download_file (sha512_download_link, cb_filename + '.sha512sum')
+            download_file (sha512_download_link, filename_list[1] + '.sha512sum')
             for line in urllib.request.urlopen(sha512_download_link):
                sha512_file2 = line
 
          if "TerminAttr" in image:
-            download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for TerminAttr images
+            download_file_chksum = md5(filename_list[0])  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for TerminAttr images
             if (download_file_chksum == (sha512_file.decode("utf-8").split(" ")[0])):
                print ("\nMD5 checksum correct")
             else:
                print ("\nMD5 checksum incorrect, downloaded file must be corrupt.")
                sys.exit()
          elif "cvp" in image:
-            download_file_chksum = md5(eos_filename)  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for CVP images
+            download_file_chksum = md5(filename_list[0])  # calculate the MD5 checksum of the downloaded file, note only MD5 checksum available for CVP images
             if (download_file_chksum == sha512_file.decode("utf-8").rstrip('\n')):
                print ("\nMD5 checksum correct")
             else:
                print ("\nMD5 checksum incorrect, downloaded file must be corrupt.")
                sys.exit()
          else:
-            download_file_chksum = os.popen("openssl sha512 " + eos_filename).read()  # calculate the SHA512 checksum of the downloaded file
+            download_file_chksum = os.popen("openssl sha512 " + filename_list[0]).read()  # calculate the SHA512 checksum of the downloaded file
             if (download_file_chksum.split(" ")[1].rstrip('\n')) == (sha512_file.decode("utf-8").split(" ")[0]):
                print ("\nSHA512 checksum correct")
             else:
@@ -411,17 +464,18 @@ if cvp != '': # if the CVP IP address has been specified when running the script
    sftp = paramiko.SFTPClient.from_transport(t)
    for image in file_list:
       if "-INT" in image:
-         z = 1
          filename = "EOS-" + image + ".swi"
          image = image.rstrip("-INT")
          eos_filename = filename
          eos_bundle = image
       elif "TerminAttr" in image:
-         z = 3
          filename = image + "-1.swix"
          terminattr_filename = filename
+      elif img == 'vEOS-lab-swi':
+         filename = "vEOS-lab-" + image + ".swi"
+         eos_filename = filename
+         eos_bundle = image
       else:
-         z = 0
          filename = "EOS-" + image + ".swi"
          eos_filename = filename
          eos_bundle = image
@@ -436,7 +490,8 @@ if cvp != '': # if the CVP IP address has been specified when running the script
    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
    ssh.connect(cvp, username="root", password=rootpw)
 
-   print ("\nFile copied to CVP server\nNow importing " + eos_filename + " into HDBase.")
+   print ("\nFile copied to CVP server\nNow importing " + filename_list[0] + " into HDBase.")
+
 
    if (eos_filename != '') and (terminattr_filename != ''):
       stdin, stdout, stderr = ssh.exec_command('python /cvpi/tools/imageUpload.py --swi ' + eos_filename + ' --swix' + terminattr_filename + ' --bundle EOS-' + eos_bundle + ' --user ' + cvp_user + ' --password ' + cvp_passwd)
@@ -452,13 +507,14 @@ if cvp != '': # if the CVP IP address has been specified when running the script
       elif "SWI does not contain a supported TerminAttr version" in (stderr.read()).decode("UTF-8"):
          print ("SWI does not contain a supported TerminAttr version.")
       else:
-         print ("Some other error")
+         print ("Some other error - " + (stderr.read()).decode("UTF-8") + ". Exit status was " + str(exit_status))
    if ssh:
       ssh.close()
 
+
 if eve:
    print ("Creating qcow2 image")
-   os.system("/opt/qemu/bin/qemu-img convert -f vmdk -O qcow2 " + eos_filename + " hda.qcow2")
+   os.system("/opt/qemu/bin/qemu-img convert -f vmdk -O qcow2 " + filename_list[0] + " hda.qcow2")
    eos_folder_name = ""
    x = eos_filename.split("-")
    for y in x[:-1]:
@@ -476,6 +532,7 @@ if eve:
    print ("Image successfully created")
 
    eve_path = "/opt/unetlab/addons/qemu/" + eos_folder_name
+
    if ztp:
       print("Mounting volume to disable ZTP")
       os.system("rm -rf " + eve_path + "/raw")
