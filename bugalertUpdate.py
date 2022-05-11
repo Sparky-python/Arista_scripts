@@ -93,7 +93,7 @@ def is_eos_after(eos_ver, list_of_version_introduced):
    is_after = any(is_after_list)
    return is_after
 
-
+def is_cluster()
 
 warnings.filterwarnings("ignore")
 parser = argparse.ArgumentParser()
@@ -176,8 +176,10 @@ if os.path.isfile(alertBaseFile):
          scp = SCPClient(ssh.get_transport())
          scp.put('AlertBase-CVP.json')
          stdin, stdout, stderr = ssh.exec_command('chmod 644 AlertBase-CVP.json')
-         if cvp_main_version == "2020":
+         if cvp_main_version == "2020" or (cvp_main_version == "2021") or (cvp_main_version == "2022"):
             stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/bugalerts/AlertBase.json')
+            stdin, stdout, stderr = ssh.exec_command("su cvp -c 'scp /cvpi/apps/bugalerts/AlertBase.json $SECONDARY_HOSTNAME:/cvpi/apps/bugalerts/AlertBase.json'")
+            stdin, stdout, stderr = ssh.exec_command("su cvp -c 'scp /cvpi/apps/bugalerts/AlertBase.json $TERTIARY_HOSTNAME:/cvpi/apps/bugalerts/AlertBase.json'")
          elif (cvp_main_version == "2018") or (cvp_main_version == "2019"): 
             stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/aeris/bugalerts/AlertBase.json')
          else:
@@ -202,8 +204,12 @@ else:
       scp = SCPClient(ssh.get_transport())
       scp.put('AlertBase-CVP.json')
       stdin, stdout, stderr = ssh.exec_command('chmod 644 AlertBase-CVP.json')
-      if (cvp_main_version == "2020") or (cvp_main_version == "2021"):
+      if (cvp_main_version == "2020") or (cvp_main_version == "2021") or (cvp_main_version == "2022"):
          stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/bugalerts/AlertBase.json')
+         stdin, stdout, stderr = ssh.exec_command('kubectl get nodes | grep Ready | wc -l')
+         if stdout == "3":
+            stdin, stdout, stderr = ssh.exec_command("su cvp -c 'scp /cvpi/apps/bugalerts/AlertBase.json $SECONDARY_HOSTNAME:/cvpi/apps/bugalerts/AlertBase.json'")
+            stdin, stdout, stderr = ssh.exec_command("su cvp -c 'scp /cvpi/apps/bugalerts/AlertBase.json $TERTIARY_HOSTNAME:/cvpi/apps/bugalerts/AlertBase.json'")
       elif (cvp_main_version == "2018") or (cvp_main_version == "2019"): 
          stdin, stdout, stderr = ssh.exec_command('mv -f AlertBase-CVP.json /cvpi/apps/aeris/bugalerts/AlertBase.json')
       else:
